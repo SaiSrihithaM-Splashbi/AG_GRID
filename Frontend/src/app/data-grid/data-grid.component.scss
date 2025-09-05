@@ -1,0 +1,132 @@
+// :host {
+//   display: block;
+//   padding: 10px;
+// }
+
+// .export-controls {
+//   // margin-bottom: px;
+//   display: flex;
+//   gap: 20px;
+  
+//   button {
+//     padding: 5px;
+//     margin-bottom: 5px;
+//     border: none;
+//     border-radius: 6px;
+//     cursor: pointer;
+//     font-weight: 500;
+//     transition: all 0.3s ease;
+    
+//     &:hover {
+//       transform: translateY(-2px);
+//       box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+//     }
+    
+//     &#export-excel-button {
+//       background-color: #28a745;
+//       color: white;
+      
+//       &:hover {
+//         background-color: #218838;
+//       }
+//     }
+    
+//     &#export-pdf-button {
+//       background-color: #dc3545;
+//       color: white;
+      
+//       &:hover {
+//         background-color: #c82333;
+//       }
+//     }
+//   }
+// }
+
+// // // Custom header classes
+// // .header-bold-blue {
+// //   background-color: #000000 !important;
+// //   color: white !important;
+// //   font-weight: bold !important;
+// //   text-align: center !important;
+// // }
+
+// .header-italic-red {
+//   background-color: #e74c3c !important;
+//   color: white !important;
+//   font-style: italic !important;
+//   text-align: center !important;
+// }
+
+// .header-green {
+//   background-color: #27ae60 !important;
+//   color: white !important;
+//   font-weight: 900 !important;
+//   text-align: center !important;
+//   font-style:oblique;
+// }
+
+// // .header-center {
+// //   background-color: #7f8c8d !important;
+// //   color: white !important;
+// //   text-align: center !important;
+// // }
+
+// // // Grid container styling
+// // ag-grid-angular {
+// //   width: 100%;
+// //   height: 600px;
+// //   border-radius: 8px;
+// //   overflow: hidden;
+// //   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+// // }
+
+// // // Custom cell hover effects
+// // .ag-theme-quartz {
+// //   .ag-cell {
+// //     transition: background-color 0.2s ease;
+    
+// //     &:hover {
+// //       background-color: #f8f9fa !important;
+// //     }
+// //   }
+  
+//   .ag-header-cell {
+//     border-right: 1px solid #dee2e6;
+//     width: 200%;
+    
+//     &:last-child {
+//       border-right: none;
+//     }
+//   }
+  
+// //   .ag-row {
+// //     border-bottom: 1px solid #e9ecef;
+    
+// //     &:last-child {
+// //       border-bottom: none;
+// //     }
+    
+// //     &:hover {
+// //       background-color: #f8f9fa;
+// //     }
+// //   }
+// // }
+
+// // // Add to your SCSS file for more advanced styling
+
+// // // Alternating row colors
+// // .ag-theme-quartz .ag-row-odd {
+// //   background-color: #fafafa;
+// // }
+
+// // // Selected row styling
+// // .ag-theme-quartz .ag-row-selected {
+// //   background-color: #e3f2fd !important;
+// // }
+
+// // // Loading overlay customization
+// // .ag-overlay-loading-center {
+// //   background-color: rgba(255,255,255,0.8);
+// //   border-radius: 8px;
+// //   padding: 20px;
+// // }
