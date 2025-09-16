@@ -1,85 +1,213 @@
-import { GridApi, ExcelStyle, ColDef } from 'ag-grid-community';
+import { GridApi, ExcelStyle } from 'ag-grid-community';
 import { GridStylingOptions } from './grid-styling.model';
 
 export class ExcelExporter {
-  /** Extract supported styles from your UI styling options */
+  /** Extract supported styles from your UI styling options (keeps header/default templates) */
   static extractSupportedStyles(styling: GridStylingOptions): Record<string, any> {
     const dict: Record<string, any> = {};
 
     dict['header'] = {
       font: {
-        color: this.cleanHex(styling.columnHeader.color),
+        color: this.normalizeColor(styling.columnHeader.color),
         size: styling.columnHeader.fontSize,
         bold: this.toBold(styling.columnHeader.fontWeight),
         italic: false,
+        name: styling.columnHeader.fontFamily,
       },
       alignment: { horizontal: styling.columnHeader.textAlign },
-      interior: { color: this.cleanHex(styling.columnHeader.backgroundColor) },
+      interior: { color: this.normalizeColor(styling.columnHeader.backgroundColor) },
       borders: {
-        horizontal: { color: this.cleanHex(styling.grid.horizontal.color) },
-        vertical: { color: this.cleanHex(styling.grid.vertical.color) },
+        horizontal: { color: this.normalizeColor(styling.grid.horizontal.color) },
+        vertical: { color: this.normalizeColor(styling.grid.vertical.color) },
       },
     };
 
     dict['default'] = {
       font: {
-        color: this.cleanHex(styling.values.fontColor),
+        color: this.normalizeColor(styling.values.fontColor),
         size: styling.values.fontSize,
         bold: this.toBold(styling.values.fontWeight),
         italic: (styling.values.fontStyle ?? '').toLowerCase() === 'italic',
+        name: styling.values.fontFamily,
       },
       alignment: { horizontal: styling.values.textAlign },
-      interior: { color: this.cleanHex(styling.values.backgroundColor) },
-      alternateRowBackground: styling.values.alternateRowBackground,
+      interior: { color: this.normalizeColor(styling.values.backgroundColor) },
+      alternateRowBackground: this.normalizeColor(styling.values.alternateRowBackground),
       borders: {
-        horizontal: { color: this.cleanHex(styling.grid.horizontal.color) },
-        vertical: { color: this.cleanHex(styling.grid.vertical.color) },
+        horizontal: { color: this.normalizeColor(styling.grid.horizontal.color) },
+        vertical: { color: this.normalizeColor(styling.grid.vertical.color) },
       },
     };
 
     return dict;
   }
 
+  /**
+   * Build per-column props in the exact shape generateStyles expects.
+   * This is used internally when caller gives a GridStylingOptions object.
+   */
+  static buildPerColumnProps(styling: GridStylingOptions, columns: string[]): Record<string, any> {
+    const v = styling.values;
+    const borderObj = {
+      horizontal: { color: this.normalizeColor(styling.grid.horizontal.color) },
+      vertical: { color: this.normalizeColor(styling.grid.vertical.color) },
+    };
+
+    const res: Record<string, any> = {};
+    for (const col of columns) {
+      res[col] = {
+        'font-color': this.normalizeColor(v.fontColor),
+        'font-size': Number(v.fontSize),
+        'font-weight': String(v.fontWeight),
+        'font-style': v.fontStyle,
+        'font-family': v.fontFamily,
+        'background-color': this.normalizeColor(v.backgroundColor),
+        'text-align': v.textAlign,
+        borders: borderObj,
+        alternateRowBackground: this.normalizeColor(v.alternateRowBackground),
+      };
+    }
+    return res;
+  }
+
+  /**
+   * Single entry: build ExcelStyle[] from styling + columns
+   */
+  static buildExcelStyles(styling: GridStylingOptions, columns: string[]): ExcelStyle[] {
+    const styleDict = this.extractSupportedStyles(styling);
+    const perCol = this.buildPerColumnProps(styling, columns);
+    return this.generateStyles(styleDict, perCol);
+  }
+
+  /** Optional: build consistent JSON payload for UI/export consumption */
+  static buildExportPayload(styling: GridStylingOptions, tableData: any[]) {
+    const cols = tableData?.length ? Object.keys(tableData[0]) : [];
+    const dataProperties: Record<string, any> = {};
+    const v = styling.values;
+
+    for (const c of cols) {
+      dataProperties[c] = {
+        displayName: c.charAt(0).toUpperCase() + c.slice(1),
+        // include the properties likely to be used for Excel export
+        'font-family': v.fontFamily,
+        'font-color': this.normalizeColor(v.fontColor),
+        'font-size': Number(v.fontSize),
+        'font-weight': v.fontWeight,
+        'font-style': v.fontStyle,
+        'background-color': this.normalizeColor(v.backgroundColor),
+        'text-align': v.textAlign,
+        // you can extend with 'number-format', 'wrap-text', 'indent' etc. when your UI provides them
+      };
+    }
+
+    const widgetProperties = {
+      ...styling,
+      columns: {
+        All: {
+          'font-color': this.normalizeColor(v.fontColor),
+          'font-size': v.fontSize,
+          'background-color': this.normalizeColor(v.backgroundColor),
+          'header-text-align': styling.columnHeader.textAlign,
+          'font-family': v.fontFamily,
+        },
+      },
+    };
+
+    return { dataProperties, widgetProperties, tableData };
+  }
+
   /** Convert the dictionary into ag-Grid ExcelStyle[] */
   static generateStyles(styleDict: Record<string, any>, dataProps?: Record<string, any>): ExcelStyle[] {
     const styles: ExcelStyle[] = [];
 
+    // global styles (header/default)
     for (const [key, val] of Object.entries(styleDict)) {
-      const style: ExcelStyle = {
+      const interiorColor = this.normalizeColor(val?.interior?.color);
+      const styleObj: any = {
         id: key,
-        font: val?.font,
+        font: val?.font ? { ...val.font, color: this.normalizeColor(val.font.color) } : undefined,
         alignment: val?.alignment ? { horizontal: this.convertAlignment(val.alignment.horizontal) } : undefined,
-        interior: val?.interior ? { color: this.cleanHex(val.interior.color), pattern: 'Solid' } : undefined,
+        interior: interiorColor ? { color: interiorColor, pattern: 'Solid' } : undefined,
         borders: this.buildBordersFromDict(val?.borders),
       };
-      styles.push(style);
+      styles.push(styleObj as ExcelStyle);
 
+      // If default or header has alternateRowBackground, build an alternateRow style id
       if (val?.alternateRowBackground) {
-        styles.push({
-          id: 'alternateRow',
-          font: val?.font,
-          interior: { color: this.cleanHex(val.alternateRowBackground), pattern: 'Solid' },
-          alignment: val?.alignment ? { horizontal: this.convertAlignment(val.alignment.horizontal) } : undefined,
-          borders: this.buildBordersFromDict(val?.borders),
-        });
+        const altColor = this.normalizeColor(val.alternateRowBackground);
+        if (altColor) {
+          const altStyle: any = {
+            id: 'alternateRow',
+            font: val?.font ? { ...val.font, color: this.normalizeColor(val.font.color) } : undefined,
+            interior: { color: altColor, pattern: 'Solid' },
+            alignment: val?.alignment ? { horizontal: this.convertAlignment(val.alignment.horizontal) } : undefined,
+            borders: this.buildBordersFromDict(val?.borders),
+          };
+          styles.push(altStyle as ExcelStyle);
+        }
       }
     }
 
+    // per-column styles (col_<name>)
     if (dataProps) {
       for (const [col, props] of Object.entries(dataProps)) {
         const font: any = {};
-        if (props['font-color']) font.color = this.cleanHex(props['font-color']);
+        if (props['font-family']) font.name = props['font-family'];
+        if (props['font-color']) font.color = this.normalizeColor(props['font-color']);
         if (props['font-size']) font.size = Number(props['font-size']);
-        if (props['font-weight']) font.bold = ['bold', '700', 'bolder'].includes(props['font-weight'].toLowerCase());
-        if (props['font-style']) font.italic = props['font-style'].toLowerCase() === 'italic';
+        if (props['font-weight']) {
+          font.bold = ['bold', '700', 'bolder'].includes(String(props['font-weight']).toLowerCase());
+        }
+        if (props['font-style']) font.italic = String(props['font-style']).toLowerCase() === 'italic';
+        if (props['underline'] === true || String(props['underline']).toLowerCase() === 'underline') font.underline = true;
 
-        styles.push({
+        // alignment: allow horizontal, vertical, wrapText, indent
+        const alignment: any = {};
+        if (props['text-align'] || props['horizontal-alignment'] || props['horizontalAlignment']) {
+          alignment.horizontal = this.convertAlignment(props['text-align'] ?? props['horizontal-alignment'] ?? props['horizontalAlignment']);
+        }
+        if (props['vertical-align'] || props['verticalAlignment'] || props['vertical-alignment']) {
+          alignment.vertical = this.convertVerticalAlignment(props['vertical-align'] ?? props['verticalAlignment'] ?? props['vertical-alignment']);
+        }
+        if (props['wrap-text'] !== undefined || props['wrapText'] !== undefined) {
+          alignment.wrapText = !!(props['wrap-text'] ?? props['wrapText']);
+        }
+        if (props['indent'] !== undefined) {
+          alignment.indent = Number(props['indent']);
+        }
+
+        const interiorColor = this.normalizeColor(props['background-color'] ?? props['backgroundColor']);
+        const borders = this.buildBordersFromDict(props?.borders);
+
+        const styleObj: any = {
           id: `col_${col}`,
           font: Object.keys(font).length ? font : undefined,
-          alignment: props['text-align'] ? { horizontal: this.convertAlignment(props['text-align']) } : undefined,
-          interior: props['background-color'] ? { color: this.cleanHex(props['background-color']), pattern: 'Solid' } : undefined,
-          borders: this.buildBordersFromDict(props?.borders),
-        });
+          alignment: Object.keys(alignment).length ? alignment : undefined,
+          interior: interiorColor ? { color: interiorColor, pattern: 'Solid' } : undefined,
+          borders,
+        };
+
+        // optional: numberFormat
+        if (props['number-format'] || props['numberFormat'] || props['format']) {
+          styleObj.format = props['number-format'] ?? props['numberFormat'] ?? props['format'];
+        }
+
+        styles.push(styleObj as ExcelStyle);
+
+        // optionally add per-column alternate row style if requested (col_<col>_alternate)
+        if (props?.alternateRowBackground) {
+          const alt = this.normalizeColor(props.alternateRowBackground);
+          if (alt) {
+            const altStyle: any = {
+              id: `col_${col}_alternate`,
+              font: Object.keys(font).length ? font : undefined,
+              interior: { color: alt, pattern: 'Solid' },
+              alignment: Object.keys(alignment).length ? alignment : undefined,
+              borders,
+            };
+            styles.push(altStyle as ExcelStyle);
+          }
+        }
       }
     }
 
@@ -89,8 +217,8 @@ export class ExcelExporter {
   private static buildBordersFromDict(dict?: any): ExcelStyle['borders'] | undefined {
     if (!dict) return undefined;
     const res: any = {};
-    if (dict.horizontal?.color) res.bottom = { color: this.cleanHex(dict.horizontal.color) };
-    if (dict.vertical?.color) res.right = { color: this.cleanHex(dict.vertical.color) };
+    if (dict.horizontal?.color) res.bottom = { color: this.normalizeColor(dict.horizontal.color) };
+    if (dict.vertical?.color) res.right = { color: this.normalizeColor(dict.vertical.color) };
     return Object.keys(res).length ? res : undefined;
   }
 
@@ -103,44 +231,160 @@ export class ExcelExporter {
     }
   }
 
+  private static convertVerticalAlignment(val?: string): 'Top' | 'Center' | 'Bottom' {
+    switch ((val ?? '').toLowerCase()) {
+      case 'center': return 'Center';
+      case 'bottom': return 'Bottom';
+      default: return 'Top';
+    }
+  }
+
   private static toBold(val?: string): boolean {
     return val ? ['bold', '700', 'bolder'].includes(val.toString().toLowerCase()) : false;
   }
 
-  private static cleanHex(val?: string): string {
-    return (val ?? '').replace('#', '') || '000000';
+  /**
+   * Normalize hex-like color strings: return undefined if falsy,
+   * otherwise return a cleaned hex string without '#' and uppercase.
+   */
+  private static normalizeColor(val?: string): string | undefined {
+    if (val === undefined || val === null) return undefined;
+    const s = String(val ?? '').trim();
+    if (!s) return undefined;
+    if (s.startsWith('#')) return s.replace('#', '').toUpperCase();
+    if (/^[0-9a-f]{3}$/i.test(s) || /^[0-9a-f]{6}$/i.test(s)) return s.toUpperCase();
+    return s.toUpperCase();
   }
 
-  /** Final Excel Export */
-  /** Final Excel Export */
-static generate(gridApi: GridApi, fileName: string, excelStyles: ExcelStyle[]): void {
-  if (!gridApi) return;
+  /**
+   * NEW: Build excelStyles directly from the payload (giant JSON).
+   * This extracts only the supported properties and creates ExcelStyle[].
+   */
+  static generateFromPayload(gridApi: GridApi, fileName: string, payload: any): void {
+    if (!gridApi) return;
 
-  const params: any = {
-    fileName: `${fileName}.xlsx`,
-    sheetName: 'Report',
+    // widgetProperties is expected to be the styling object you logged in the giant JSON
+    const styling = payload?.widgetProperties ?? payload?.widget ?? {};
+    const styleDict = this.extractSupportedStyles(styling as GridStylingOptions);
 
-    // ✅ Header export (just plain text)
-    processHeaderCallback: (p: any) =>
-      p.column.getColDef().headerName ?? p.column.getColDef().field ?? '',
+    // dataProperties -> per column definitions (these may be stringified or object)
+    const rawDataProps = payload?.dataProperties ?? {};
 
-    // ✅ Cell export with safe string conversion + correct styleId
-   processCellCallback: (p: any) => {
-  const rowIndex = p.node?.rowIndex ?? -1;
-  const value = p.value ?? '';
+    const perColProps: Record<string, any> = {};
+    for (const [col, raw] of Object.entries(rawDataProps)) {
+      // If the user stringified props (console parity), attempt to parse
+      let src: any = raw;
+      if (typeof raw === 'string') {
+        try {
+          src = JSON.parse(raw);
+        } catch {
+          src = {};
+        }
+      }
 
-  // Alternate row style
-  if (rowIndex % 2 === 1) {
-    return value; // ✅ just return the primitive, styling is handled by styleId mapping
+      // helper to pick a value among possible key names (kebab / camelCase)
+      const pick = (...keys: string[]) => {
+        for (const k of keys) {
+          if (src && src[k] !== undefined && src[k] !== null) return src[k];
+        }
+        return undefined;
+      };
+
+      const fontColor = pick('font-color', 'fontColor', 'color');
+      const fontSize = pick('font-size', 'fontSize', 'size');
+      const fontWeight = pick('font-weight', 'fontWeight');
+      const fontStyle = pick('font-style', 'fontStyle');
+      const fontFamily = pick('font-family', 'fontFamily', 'fontName');
+      const underline = pick('underline', 'text-decoration');
+      const bg = pick('background-color', 'backgroundColor', 'bg');
+      const borderColor = pick('border-color', 'borderColor');
+      const borderStyle = pick('border-style', 'borderStyle');
+      const borderWeight = pick('border-weight', 'borderWeight');
+      const hAlign = pick('horizontal-alignment', 'horizontalAlignment', 'text-align', 'textAlign');
+      const vAlign = pick('vertical-alignment', 'verticalAlignment', 'vertical-align', 'verticalAlign');
+      const numberFormat = pick('number-format', 'numberFormat', 'format');
+      const indent = pick('indent');
+      const wrapText = pick('wrap-text', 'wrapText', 'wrap');
+
+      // construct nested borders if available (we use same color for both directions if provided)
+      const borders = borderColor ? { horizontal: { color: this.normalizeColor(borderColor) }, vertical: { color: this.normalizeColor(borderColor) } } : undefined;
+
+      perColProps[col] = {
+        'font-family': fontFamily,
+        'font-color': this.normalizeColor(fontColor),
+        'font-size': fontSize !== undefined ? Number(fontSize) : undefined,
+        'font-weight': fontWeight !== undefined ? String(fontWeight) : undefined,
+        'font-style': fontStyle,
+        'underline': underline,
+        'background-color': this.normalizeColor(bg),
+        'text-align': hAlign,
+        'vertical-align': vAlign,
+        'number-format': numberFormat,
+        'indent': indent !== undefined ? Number(indent) : undefined,
+        'wrap-text': wrapText === true || String(wrapText) === 'true' || String(wrapText) === '1',
+        borders,
+        // allow alternate row color per column if present in payload
+        alternateRowBackground: this.normalizeColor(pick('alternateRowBackground', 'alternate-row-background', 'alternate_row_background')),
+      };
+    }
+
+    // Generate ExcelStyle[] using the canonical generator
+    const excelStyles = this.generateStyles(styleDict, perColProps);
+
+    // Debugging visibility: show computed excelStyles in console for inspection
+    console.log('Computed excelStyles from payload:', excelStyles);
+
+    // Finally export using ag-Grid export API
+    const params: any = {
+      fileName: `${fileName}.xlsx`,
+      sheetName: 'Report',
+      processHeaderCallback: (p: any) => p.column.getColDef().headerName ?? p.column.getColDef().field ?? '',
+      processCellCallback: (p: any) => {
+        const value = p.value;
+        if (value == null) return '';
+        if (typeof value === 'object') {
+          if (typeof value.displayName === 'string' || typeof value.displayName === 'number') return String(value.displayName);
+          if (typeof value.name === 'string' || typeof value.name === 'number') return String(value.name);
+          try {
+            return JSON.stringify(value);
+          } catch {
+            return String(value);
+          }
+        }
+        return String(value);
+      },
+      excelStyles,
+    };
+
+    gridApi.exportDataAsExcel(params);
   }
 
-  return value; // ✅ same for normal rows
-},
-    // ✅ Make sure styles are passed
-    excelStyles,
-  };
+  /** Final Excel Export (kept for backward compatibility) */
+  static generate(gridApi: GridApi, fileName: string, excelStyles: ExcelStyle[]): void {
+    if (!gridApi) return;
 
-  gridApi.exportDataAsExcel(params);
-}
+    const params: any = {
+      fileName: `${fileName}.xlsx`,
+      sheetName: 'Report',
+      processHeaderCallback: (p: any) =>
+        p.column.getColDef().headerName ?? p.column.getColDef().field ?? '',
+      processCellCallback: (p: any) => {
+        const value = p.value;
+        if (value == null) return '';
+        if (typeof value === 'object') {
+          if (typeof value.displayName === 'string' || typeof value.displayName === 'number') return String(value.displayName);
+          if (typeof value.name === 'string' || typeof value.name === 'number') return String(value.name);
+          try {
+            return JSON.stringify(value);
+          } catch {
+            return String(value);
+          }
+        }
+        return String(value);
+      },
+      excelStyles,
+    };
 
+    gridApi.exportDataAsExcel(params);
+  }
 }

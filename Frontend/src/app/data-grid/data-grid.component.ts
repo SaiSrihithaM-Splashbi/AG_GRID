@@ -30,13 +30,17 @@ export class DataGridComponent implements OnInit {
     this.currentStyling = { ...DEFAULT_GRID_STYLING };
     await this.loadData();
     this.initializeColumns();
+    this.updateExcelStyles(); // initialize excelStyles (safe with empty rowData)
   }
 
   async loadData() {
     try {
       this.rowData = await firstValueFrom(
-        this.http.get<any[]>('https://api.npoint.io/5243d7ba22d1db8048b9')
+        this.http.get<any[]>('https://api.npoint.io/0999a1c288e52309858f')
       );
+      // Recompute columns & styles when data arrives
+      this.initializeColumns();
+      this.updateExcelStyles();
     } catch (e) {
       console.error('Failed to load data', e);
     }
@@ -49,6 +53,20 @@ export class DataGridComponent implements OnInit {
     }
 
     this.columnDefs = Object.keys(this.rowData[0]).map((field) => {
+      // dynamic cellClassRules: mark alternate rows and per-column-alternate class
+      const cellClassRules: Record<string, (params: any) => boolean> = {
+        // generic alt-row class
+        alternateRow: (params: any) => {
+          const idx = params.node?.rowIndex ?? -1;
+          return idx % 2 === 1;
+        },
+      };
+      // per-column alternate class (col_<field>_alternate)
+      cellClassRules[`col_${field}_alternate`] = (params: any) => {
+        const idx = params.node?.rowIndex ?? -1;
+        return idx % 2 === 1;
+      };
+
       return {
         headerName: this.capitalize(field),
         field,
@@ -56,10 +74,14 @@ export class DataGridComponent implements OnInit {
         filter: true,
         resizable: true,
 
-        // ✅ match Excel style IDs
+        // match Excel style IDs produced by exporter
         headerClass: 'header',
+        // add both per-column id class and default fallback
         cellClass: [`col_${field}`, 'default'],
 
+        cellClassRules,
+
+        // DOM-only visual styling for the on-screen grid
         headerStyle: {
           'background-color': this.currentStyling.columnHeader.backgroundColor,
           color: this.currentStyling.columnHeader.color,
@@ -115,25 +137,13 @@ export class DataGridComponent implements OnInit {
     this.applyCssVariables();
   }
 
+  // Centralized: ask exporter to build ExcelStyle[] and set it on gridOptions
   private updateExcelStyles() {
-    const styleDict = ExcelExporter.extractSupportedStyles(this.currentStyling);
-    const columnStyles = this.buildColumnStyles();
-    this.gridOptions.excelStyles = ExcelExporter.generateStyles(styleDict, columnStyles);
-  }
-
-  buildColumnStyles(): Record<string, any> {
-    const styles: Record<string, any> = {};
-    if (!this.rowData?.length) return styles;
-
-    const sample = this.rowData[0];
-    Object.keys(sample).forEach((key) => {
-      styles[key] = {
-        ...this.flattenObject(this.currentStyling.values),
-        'header-text-align': this.currentStyling.columnHeader.textAlign,
-      };
-    });
-
-    return styles;
+    const columns = this.rowData?.length ? Object.keys(this.rowData[0]) : [];
+    // Build ExcelStyle[] via exporter (single source of truth)
+    const excelStyles = ExcelExporter.buildExcelStyles(this.currentStyling, columns);
+    // Keep gridOptions in sync so template binding [excelStyles]="gridOptions.excelStyles" works
+    this.gridOptions = { ...this.gridOptions, excelStyles };
   }
 
   applyCssVariables() {
@@ -156,57 +166,26 @@ export class DataGridComponent implements OnInit {
   exportAsExcel() {
     if (!this.gridApi) return;
 
-    const json = this.buildExportJson();
-    console.log('Generated Export JSON:', json);
+    // Build canonical payload and log in the same shape your earlier code used (dataProperties stringified)
+    const payload = ExcelExporter.buildExportPayload(this.currentStyling, this.rowData);
 
+    // Console parity: big JSON with stringified dataProperties for compatibility with existing code/UX
+    const exportJson = {
+      dataProperties: JSON.stringify(payload.dataProperties),
+      widgetProperties: payload.widgetProperties,
+      tableData: payload.tableData,
+    };
+    console.log('Generated Export JSON:', exportJson);
+
+    // Also log the style dictionary (for debugging / parity)
     const styleDict = ExcelExporter.extractSupportedStyles(this.currentStyling);
-    console.log('Generated Dictionary:', styleDict); // ✅ log dictionary separately
+    console.log('Generated Dictionary:', styleDict);
 
-    const excelStyles = ExcelExporter.generateStyles(styleDict, this.buildColumnStyles());
-    ExcelExporter.generate(this.gridApi, this.fileName, excelStyles);
-  }
+    // Save excelStyles to gridOptions so ag-Grid has them
+    const columns = this.rowData?.length ? Object.keys(this.rowData[0]) : [];
+    this.gridOptions = { ...this.gridOptions, excelStyles: ExcelExporter.buildExcelStyles(this.currentStyling, columns) };
 
-  private buildExportJson() {
-    const dataProperties: Record<string, any> = {};
-
-    if (this.rowData?.length) {
-      Object.keys(this.rowData[0]).forEach((key) => {
-        dataProperties[key] = {
-          displayName: this.capitalize(key),
-          ...this.flattenObject(this.currentStyling.values),
-          'header-text-align': this.currentStyling.columnHeader.textAlign,
-        };
-      });
-    }
-
-    const widgetProperties = {
-      ...this.flattenObject(this.currentStyling),
-      columns: {
-        All: {
-          ...this.flattenObject(this.currentStyling.values),
-          'header-text-align': this.currentStyling.columnHeader.textAlign,
-        },
-      },
-    };
-
-    return {
-      dataProperties: JSON.stringify(dataProperties),
-      widgetProperties,
-      tableData: this.rowData,
-    };
-  }
-
-  private flattenObject(obj: any, parentKey = ''): Record<string, any> {
-    return Object.entries(obj).reduce((acc, [key, value]) => {
-      const newKey = parentKey ? `${parentKey}-${key}` : key;
-
-      if (value && typeof value === 'object' && !Array.isArray(value)) {
-        Object.assign(acc, this.flattenObject(value, newKey));
-      } else {
-        acc[newKey] = value;
-      }
-
-      return acc;
-    }, {} as Record<string, any>);
+    // EXPORT: use the giant payload as the source-of-truth for the exporter's extraction
+    ExcelExporter.generateFromPayload(this.gridApi, this.fileName, payload);
   }
 }
