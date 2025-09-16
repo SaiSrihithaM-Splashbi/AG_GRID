@@ -1,132 +1,244 @@
-// :host {
-//   display: block;
-//   padding: 10px;
-// }
+/* Custom header using CSS vars */
+.grid-widget {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  background: var(--widget-background, #ffffff);
+}
 
-// .export-controls {
-//   // margin-bottom: px;
-//   display: flex;
-//   gap: 20px;
-  
-//   button {
-//     padding: 5px;
-//     margin-bottom: 5px;
-//     border: none;
-//     border-radius: 6px;
-//     cursor: pointer;
-//     font-weight: 500;
-//     transition: all 0.3s ease;
-    
-//     &:hover {
-//       transform: translateY(-2px);
-//       box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-//     }
-    
-//     &#export-excel-button {
-//       background-color: #28a745;
-//       color: white;
-      
-//       &:hover {
-//         background-color: #218838;
-//       }
-//     }
-    
-//     &#export-pdf-button {
-//       background-color: #dc3545;
-//       color: white;
-      
-//       &:hover {
-//         background-color: #c82333;
-//       }
-//     }
+/* Header styling */
+.ag-theme-alpine .ag-header-cell {
+  background-color: var(--column-header-background-color, #f0f0f0) !important;
+  color: var(--column-header-color, #000000) !important;
+  font-size: var(--column-header-font-size, 14px) !important;
+  font-weight: var(--column-header-font-weight, bold) !important;
+  text-align: var(--column-header-text-align, center) !important;
+  border-bottom: var(--grid-horizontal-thickness, 1px) solid var(--grid-horizontal-color, #ccc) !important;
+}
+
+
+:host {
+  display: block;
+  height: 100vh;
+  padding: 0;
+  position: relative;
+}
+
+.main-layout {
+  display: flex;
+  height: 100vh;
+  gap: 0;
+}
+
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 20px;
+  overflow: hidden;
+}
+
+.controls-section {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.export-controls {
+  display: flex;
+  gap: 15px;
+
+  button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    &#export-excel-button {
+      background-color: #28a745;
+      color: white;
+
+      &:hover {
+        background-color: #218838;
+      }
+    }
+
+    &#export-pdf-button {
+      background-color: #dc3545;
+      color: white;
+
+      &:hover {
+        background-color: #c82333;
+      }
+    }
+  }
+}
+
+// /* ==============================
+//    AG Grid PDF-like Styling
+//    ============================== */
+// .custom-grid {
+//   background-color: var(--widget-bg-color, #ffffff) !important;
+
+//   /* Remove rounded corners + shadows */
+//   .ag-root,
+//   .ag-header,
+//   .ag-body-viewport,
+//   .ag-center-cols-viewport {
+//     border: 1px solid var(--horizontal-border-color, #dee2e6);
+//     border-radius: 0;
+//     box-shadow: none;
 //   }
-// }
 
-// // // Custom header classes
-// // .header-bold-blue {
-// //   background-color: #000000 !important;
-// //   color: white !important;
-// //   font-weight: bold !important;
-// //   text-align: center !important;
-// // }
-
-// .header-italic-red {
-//   background-color: #e74c3c !important;
-//   color: white !important;
-//   font-style: italic !important;
-//   text-align: center !important;
-// }
-
-// .header-green {
-//   background-color: #27ae60 !important;
-//   color: white !important;
-//   font-weight: 900 !important;
-//   text-align: center !important;
-//   font-style:oblique;
-// }
-
-// // .header-center {
-// //   background-color: #7f8c8d !important;
-// //   color: white !important;
-// //   text-align: center !important;
-// // }
-
-// // // Grid container styling
-// // ag-grid-angular {
-// //   width: 100%;
-// //   height: 600px;
-// //   border-radius: 8px;
-// //   overflow: hidden;
-// //   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-// // }
-
-// // // Custom cell hover effects
-// // .ag-theme-quartz {
-// //   .ag-cell {
-// //     transition: background-color 0.2s ease;
-    
-// //     &:hover {
-// //       background-color: #f8f9fa !important;
-// //     }
-// //   }
-  
+//   /* Header cells with vertical dividers */
 //   .ag-header-cell {
-//     border-right: 1px solid #dee2e6;
-//     width: 200%;
-    
+//     border-right: var(--vertical-border-width, 1px) solid var(--vertical-border-color, #dee2e6);
+
 //     &:last-child {
 //       border-right: none;
 //     }
 //   }
-  
-// //   .ag-row {
-// //     border-bottom: 1px solid #e9ecef;
-    
-// //     &:last-child {
-// //       border-bottom: none;
-// //     }
-    
-// //     &:hover {
-// //       background-color: #f8f9fa;
-// //     }
-// //   }
-// // }
 
-// // // Add to your SCSS file for more advanced styling
+//   /* Grid cells with vertical borders */
+//   .ag-cell {
+//     border-right: var(--vertical-border-width, 1px) solid var(--vertical-border-color, #dee2e6);
 
-// // // Alternating row colors
-// // .ag-theme-quartz .ag-row-odd {
-// //   background-color: #fafafa;
-// // }
+//     &:last-child {
+//       border-right: none;
+//     }
+//   }
 
-// // // Selected row styling
-// // .ag-theme-quartz .ag-row-selected {
-// //   background-color: #e3f2fd !important;
-// // }
+//   /* Grid rows with horizontal borders */
+//   .ag-row {
+//     border-bottom: var(--horizontal-border-width, 1px) solid var(--horizontal-border-color, #dee2e6);
 
-// // // Loading overlay customization
-// // .ag-overlay-loading-center {
-// //   background-color: rgba(255,255,255,0.8);
-// //   border-radius: 8px;
-// //   padding: 20px;
-// // }
+//     &:last-child {
+//       border-bottom: none;
+//     }
+//   }
+
+//   /* Alternate row background (like PDF) */
+//   .ag-row-odd {
+//     background-color: #ffffff !important;
+//   }
+
+//   .ag-row-even {
+//     background-color: #f8f9fa !important;
+//   }
+
+//   /* Header text style */
+//   .custom-header {
+//     font-weight: bold !important;
+//     font-size: 16px !important;
+//     text-align: center !important;
+//     color: #000000 !important;
+//     background-color: #e9ecef !important;
+//   }
+
+//   /* Remove hover highlight (keep plain like PDF) */
+//   .ag-row:hover {
+//     background-color: inherit !important;
+//   }
+
+//   /* Selected row (optional, light blue) */
+//   .ag-row-selected {
+//     background-color: #e3f2fd !important;
+//   }
+
+//   /* Pagination panel with top border */
+//   .ag-paging-panel {
+//     background-color: var(--widget-bg-color, #ffffff) !important;
+//     border-top: var(--horizontal-border-width, 1px) solid var(--horizontal-border-color, #dee2e6);
+//   }
+// }
+
+.custom-grid {
+  /* Widget background */
+  background-color: var(--widget-bg-color, #ffffff) !important;
+
+  /* Header row */
+  .ag-header {
+    background-color: var(--header-bg-color, #e9ecef) !important;
+    height: var(--header-height, 50px) !important;
+    min-height: var(--header-height, 50px) !important;
+  }
+
+  /* Header cell */
+  .ag-header-cell {
+    background-color: var(--header-bg-color, #e9ecef) !important;
+    border-right: var(--vertical-border-width, 1px) solid var(--vertical-border-color, #dee2e6);
+
+    &:last-child {
+      border-right: none;
+    }
+  }
+
+::ng-deep .ag-paging-panel {
+  background-color: var(--widget-bg-color) !important;
+  border-top: 1px solid var(--horizontal-border-color);
+  padding: 4px 8px;
+}
+
+
+  /* Header text */
+  .ag-header-cell-text {
+    color: var(--header-font-color, #000000) !important;
+    font-size: var(--header-font-size, 16px) !important;
+    font-weight: var(--header-font-weight, bold) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+
+  /* Grid rows with horizontal borders */
+  .ag-row {
+    border-bottom: var(--horizontal-border-width, 1px) solid var(--horizontal-border-color, #e9ecef);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background-color: rgba(0, 123, 255, 0.1) !important;
+    }
+  }
+
+  /* Grid cells with vertical borders */
+  .ag-cell {
+    transition: background-color 0.2s ease;
+    border-right: var(--vertical-border-width, 1px) solid var(--vertical-border-color, #dee2e6);
+
+    &:last-child {
+      border-right: none;
+    }
+  }
+
+  /* Alternate rows handled via TS cellStyle */
+  .ag-row-odd,
+  .ag-row-even {
+    background-color: transparent !important;
+  }
+
+  /* Selected row */
+  .ag-row-selected {
+    background-color: #e3f2fd !important;
+  }
+
+  /* Pagination panel */
+  .ag-paging-panel {
+    background-color: var(--widget-bg-color, #ffffff) !important;
+    border-top: var(--horizontal-border-width, 1px) solid var(--horizontal-border-color, #dee2e6);
+  }
+}

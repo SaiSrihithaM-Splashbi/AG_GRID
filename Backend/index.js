@@ -2,132 +2,99 @@ const puppeteer = require("puppeteer");
 const path = require("path");
 const fs = require("fs");
 
-// -------------------
-// ✅ Get CLI arguments
-// -------------------
+// CLI args
 const args = process.argv.slice(2);
-
 if (args.length < 2) {
-    console.error("❌ Usage: node index.js <download-path> <file-name>");
+    console.error("❌ Usage: node index.js <download-path> <base-file-name>");
     process.exit(1);
 }
-
 const downloadPath = path.resolve(args[0]);
 const baseFileName = args[1];
 
-// -------------------
-// ✅ Wait for download to complete (UPDATED LOGIC)
-// -------------------
-// CHANGE 1: Added a new parameter 'filesToIgnore' with a default empty array
+// Wait for download
 async function waitForDownload(downloadPath, extension, timeout = 60000, filesToIgnore = []) {
-    console.log(`⌛ Waiting for .${extension} file to download...`);
-
     const maxAttempts = timeout / 1000;
-    
-    for (let attempts = 0; attempts < maxAttempts; attempts++) {
+    for (let i = 0; i < maxAttempts; i++) {
         const files = fs.readdirSync(downloadPath)
-            // CHANGE 2: Added a new condition to the filter to ignore pre-existing files
-            .filter(f => 
-                f.endsWith(`.${extension}`) && 
-                !f.endsWith('.crdownload') &&
+            .filter(f =>
+                f.endsWith(`.${extension}`) &&
+                !f.endsWith(".crdownload") &&
                 !filesToIgnore.includes(f)
             )
-            .map(f => ({
-                name: f,
-                time: fs.statSync(path.join(downloadPath, f)).mtime.getTime()
-            }))
+            .map(f => ({ name: f, time: fs.statSync(path.join(downloadPath, f)).mtime.getTime() }))
             .sort((a, b) => b.time - a.time);
 
-        if (files.length > 0) {
-            const latestFile = files[0].name;
-            console.log(`✅ .${extension} download complete: ${latestFile}`);
-            return latestFile;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (files.length > 0) return files[0].name;
+        await new Promise(res => setTimeout(res, 1000));
     }
-
-    throw new Error(`❌ .${extension} file download timed out.`);
+    throw new Error(`❌ .${extension} download timed out.`);
 }
 
-// -------------------
-// ✅ Helper function to find a unique filename
-// -------------------
+// Get unique file name
 function getUniqueFileName(directory, baseName, extension) {
     let newPath = path.join(directory, `${baseName}.${extension}`);
     let counter = 1;
-
     while (fs.existsSync(newPath)) {
-        const newBaseName = `${baseName}(${counter})`;
-        newPath = path.join(directory, `${newBaseName}.${extension}`);
+        newPath = path.join(directory, `${baseName}(${counter}).${extension}`);
         counter++;
     }
-    
     return newPath;
 }
 
-
-// -------------------
-// ✅ Rename downloaded file to desired name
-// -------------------
 function renameDownloadedFile(originalFile, newFileName, extension) {
     const originalPath = path.join(downloadPath, originalFile);
     const uniquePath = getUniqueFileName(downloadPath, newFileName, extension);
-
     fs.renameSync(originalPath, uniquePath);
     console.log(`✨ Renamed to: ${path.basename(uniquePath)}`);
 }
 
-// -------------------
-// ✅ Puppeteer Workflow
-// -------------------
+// Puppeteer workflow
 (async () => {
-    if (!fs.existsSync(downloadPath)) {
-        fs.mkdirSync(downloadPath, { recursive: true });
-    }
+    if (!fs.existsSync(downloadPath)) fs.mkdirSync(downloadPath, { recursive: true });
 
-    console.log('🚀 Launching browser...');
-    const browser = await puppeteer.launch({ headless: true });
+    console.log("🚀 Launching browser...");
+    const browser = await puppeteer.launch({ headless: false });
     const page = await browser.newPage();
 
     const client = await page.target().createCDPSession();
-    await client.send('Page.setDownloadBehavior', {
-        behavior: 'allow',
-        downloadPath: downloadPath,
-    });
+    await client.send("Page.setDownloadBehavior", { behavior: "allow", downloadPath });
 
-    console.log('🌐 Navigating to Angular app...');
+    console.log("🌐 Navigating to Angular app...");
     await page.goto("http://localhost:4200/", { waitUntil: "networkidle0" });
 
-    try {
-        // --- EXCEL EXPORT ---
-        console.log('📥 Clicking "Export to Excel"...');
-        // CHANGE 3: Get a list of files *before* clicking download
-        const filesBeforeExcel = fs.readdirSync(downloadPath);
-        await page.waitForSelector('#export-excel-button');
-        await page.click('#export-excel-button');
+    // Wait for first table’s button to render
+    await page.waitForSelector("#export-excel-1", { timeout: 60000 });
 
-        const downloadedExcel = await waitForDownload(downloadPath, 'xlsx', 60000, filesBeforeExcel);
-        renameDownloadedFile(downloadedExcel, baseFileName, 'xlsx');
+    // Detect number of tables dynamically
+    const tableCount = await page.$$eval(".tables-wrapper .table-container", tables => tables.length);
+    console.log(`ℹ Found ${tableCount} table(s)`);
 
-        // --- PDF EXPORT ---
-        console.log('📥 Clicking "Export to PDF"...');
-        const filesBeforePdf = fs.readdirSync(downloadPath);
-        await page.waitForSelector('#export-pdf-button');
-        await page.click('#export-pdf-button');
+    for (let tableId = 1; tableId <= tableCount; tableId++) {
+        try {
+            // Excel export
+            console.log(`📥 Exporting Table ${tableId} to Excel...`);
+            const filesBeforeExcel = fs.readdirSync(downloadPath);
+            await page.click(`#export-excel-${tableId}`);
+            const downloadedExcel = await waitForDownload(downloadPath, "xlsx", 60000, filesBeforeExcel);
+            renameDownloadedFile(downloadedExcel, `${baseFileName}_Table${tableId}`, "xlsx");
 
-        const downloadedPdf = await waitForDownload(downloadPath, 'pdf', 60000, filesBeforePdf);
-        renameDownloadedFile(downloadedPdf, baseFileName, 'pdf');
+            // PDF export
+            console.log(`📥 Exporting Table ${tableId} to PDF...`);
+            const filesBeforePdf = fs.readdirSync(downloadPath);
+            await page.click(`#export-pdf-${tableId}`);
+            const downloadedPdf = await waitForDownload(downloadPath, "pdf", 60000, filesBeforePdf);
+            renameDownloadedFile(downloadedPdf, `${baseFileName}_Table${tableId}`, "pdf");
 
-        console.log(`✅ All exports completed and saved in: ${downloadPath}`);
-
-    } catch (error) {
-        console.error('❌ Export failed:', error);
-    } finally {
-        await browser.close();
-        console.log('🧹 Browser closed.');
+        } catch (error) {
+            console.error(`❌ Export failed for Table ${tableId}:`, error);
+        }
     }
+
+    await browser.close();
+    console.log("🧹 Browser closed. All exports done.");
 })();
+
+
 
 
 

@@ -1,130 +1,143 @@
-import { GridApi, Column } from 'ag-grid-community';
-import { GRID_STYLES } from './styles-constants';
+// import { GridApi, Column } from 'ag-grid-community';
+// import { GridStylingOptions } from '../side-panel/side-panel.component';
 
-export class PDFDocumentGenerator {
+// export class PDFDocumentGenerator {
 
-  public generateDocument(gridApi: GridApi, title: string): any {
-    // 1) Visible columns
-    const columns: Column[] = gridApi.getColumns()!
-      .filter(col => col.getColDef().headerName);
+//   public generateDocument(gridApi: GridApi, title: string, styling: GridStylingOptions): any {
+//     // 1) Visible columns
+//     const columns: Column[] = gridApi.getColumns()!
+//       .filter(col => col.getColDef().headerName);
 
-    const headers = columns.map(col => col.getColDef().headerName ?? '');
+//     const headers = columns.map(col => col.getColDef().headerName ?? '');
 
-    // 2) Build table body
-    const body: any[] = [];
+//     // 2) Build table body
+//     const body: any[] = [];
 
-    // Header row (text style + background)
-    body.push(
-      columns.map(col => {
-        const headerName = col.getColDef().headerName ?? '';
-        return {
-          text: headerName,
-          style: this.getHeaderStyle(headerName),
-          fillColor: this.getHeaderBgColor(headerName),
-        };
-      })
-    );
+//     // Header row (text style + background)
+//     body.push(
+//       columns.map(col => {
+//         const headerName = col.getColDef().headerName ?? '';
+//         return {
+//           text: headerName,
+//           style: 'headerStyle',
+//           fillColor: styling.columnHeader.backgroundColor,
+//           color: styling.columnHeader.color,
+//           fontSize: styling.columnHeader.fontSize,
+//           bold: styling.columnHeader.fontWeight === 'bold'
+//         };
+//       })
+//     );
 
-    // Data rows (normalize field names to avoid case issues)
-    gridApi.forEachNodeAfterFilterAndSort(node => {
-      const rowData = columns.map(col => {
-        const rawField = (col.getColDef().field ?? '').toString();
-        const key = rawField.toLowerCase(); // <-- normalize: 'name' | 'email' | 'country' | 'phone'
-        const value = node.data[rawField];
+//     // Data rows (normalize field names to avoid case issues)
+//     gridApi.forEachNodeAfterFilterAndSort(node => {
+//       const rowData = columns.map(col => {
+//         const rawField = (col.getColDef().field ?? '').toString();
+//         const key = rawField.toLowerCase(); // <-- normalize: 'name' | 'email' | 'country' | 'phone'
+//         const value = node.data[rawField];
+//         const isAlternate = (node.rowIndex ?? 0) % 2 === 1;
 
-        return {
-          text: value,
-          style: this.getCellStyleByKey(key, value),
-          fillColor: this.getCellBgColorByKey(key, value),
-        };
-      });
-      body.push(rowData);
-    });
+//         return {
+//           text: value,
+//           style: 'cellStyle',
+//           fillColor: isAlternate 
+//             ? styling.values.alternateCells.backgroundColor 
+//             : styling.values.backgroundColor,
+//           color: isAlternate 
+//             ? styling.values.alternateCells.fontColor 
+//             : '#000000',
+//           fontSize: styling.values.fontSize,
+//           italics: styling.values.fontStyle === 'italic',
+//           alignment: this.getTextAlignment(styling.values.textAlignment)
+//         };
+//       });
+//       body.push(rowData);
+//     });
 
-    // 3) pdfMake document definition
-    const docDefinition = {
-      content: [
-        { text: title, style: 'header' },
-        {
-          table: {
-            headerRows: 1,
-            widths: Array(headers.length).fill('auto'),
-            body: body,
-          },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#ffffffff',
-            vLineColor: () => '#ffffffff',
-            paddingLeft: () => 8,
-            paddingRight: () => 8,
-            paddingTop: () => 4,
-            paddingBottom: () => 4,
-          }
-        }
-      ],
-      styles: {
-        // Title
-        header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
+//     // 3) pdfMake document definition
+//     const docDefinition = {
+//       pageSize: 'A4',
+//       pageOrientation: 'landscape',
+//       pageMargins: [20, 20, 20, 20],
+//       // background: styling.widget.backgroundColor,
+//       content: [
+//         { text: title, style: 'header' },
+//         {
+//           table: {
+//             headerRows: 1,
+//             widths: Array(headers.length).fill('auto'),
+//             body: body,
+//           },
+//           layout: {
+//             hLineWidth: (i: number, node: any) => {
+//               // Outer border for widget
+//               if (i === 0 || i === node.table.body.length) {
+//                 return styling.widget.borderSize;
+//               }
+//               return styling.grid.horizontal.thickness;
+//             },
+//             vLineWidth: (i: number, node: any) => {
+//               // Outer border for widget
+//               if(i==0) return 0;
+//               if (i === node.table.widths.length) {
+//                 return styling.widget.borderSize;
+//               }
+//               return styling.grid.vertical.thickness;
+//             },
+//             hLineColor: (i: number, node: any) => {
+//               // Outer border for widget
+//               if (i === 0 || i === node.table.body.length) {
+//                 return styling.widget.borderColor;
+//               }
+//               return styling.grid.horizontal.color;
+//             },
+//             vLineColor: (i: number, node: any) => {
+//               // Outer border for widget
+//               if (i === 0 ) return 'transparent';
+//               if (i === node.table.widths.length) {
+//                 return styling.widget.borderColor;
+//               }
+//               return styling.grid.vertical.color;
+//             },
+//             paddingLeft: () => styling.grid.vertical.padding,
+//             paddingRight: () => styling.grid.vertical.padding,
+//             paddingTop: () => styling.grid.horizontal.padding,
+//             paddingBottom: () => styling.grid.horizontal.padding,
+//           }
+//         }
+//       ],
+//       styles: {
+//         // Title
+//         header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
 
-        // Header text styles
-        headerBoldBlue: { bold: true, color: GRID_STYLES.headers.boldBlue },
-        headerItalicRed: { bold: true, color: GRID_STYLES.headers.italicRed },
-        headerGreen: { bold: true, color: 'black' },
-        headerCenter: { alignment: 'center' },
+//         // Header text styles
+//         headerStyle: { 
+//           bold: styling.columnHeader.fontWeight === 'bold',
+//           color: styling.columnHeader.color,
+//           fontSize: styling.columnHeader.fontSize,
+//           alignment: 'center'
+//         },
 
-        // Cell text styles
-        nameCell: { bold: true, color: GRID_STYLES.cells.name.text },
-        emailCell: { italics: true, color: GRID_STYLES.cells.email.text },
-        phoneCell: { alignment: 'center' },
-      }
-    };
+//         // Cell text styles
+//         cellStyle: { 
+//           fontSize: styling.values.fontSize,
+//           italics: styling.values.fontStyle === 'italic',
+//           alignment: this.getTextAlignment(styling.values.textAlignment)
+//         },
+//       }
+//     };
 
-    return docDefinition;
-  }
+//     return docDefinition;
+//   }
 
-  // -------- Header helpers --------
+//   // -------- Helper methods --------
 
-  private getHeaderStyle(header: string): string {
-    switch (header) {
-      case 'Name':    return 'headerBoldBlue';
-      case 'Email':   return 'headerItalicRed';
-      case 'Country': return 'headerGreen';
-      case 'Phone':   return 'headerCenter';
-      default:        return '';
-    }
-  }
-
-  private getHeaderBgColor(header: string): string | undefined {
-    switch (header) {
-      case 'Name':    return GRID_STYLES.cells.name.background;
-      case 'Email':   return GRID_STYLES.cells.email.background;
-      case 'Country': return GRID_STYLES.headers.green; // header band color
-      case 'Phone':   return GRID_STYLES.cells.phone.background;
-      default:        return undefined;
-    }
-  }
-
-  // -------- Cell helpers (by normalized key) --------
-
-  private getCellStyleByKey(key: string, _value: any): string {
-    switch (key) {
-      case 'name':   return 'nameCell';
-      case 'email':  return 'emailCell';
-      case 'phone':  return 'phoneCell';
-      default:       return '';
-    }
-  }
-
-  private getCellBgColorByKey(key: string, value: any): string | undefined {
-    if (key === 'name')   return GRID_STYLES.cells.name.background;
-    if (key === 'email')  return GRID_STYLES.cells.email.background;
-    if (key === 'country') {
-      return value === 'Egypt'
-        ? GRID_STYLES.cells.country.egyptBackground
-        : GRID_STYLES.cells.country.otherBackground;
-    }
-    if (key === 'phone')  return GRID_STYLES.cells.phone.background;
-    return undefined;
-  }
-}
+//   private getTextAlignment(alignment: string): string {
+//     switch (alignment) {
+//       case 'left': return 'left';
+//       case 'center': return 'center';
+//       case 'right': return 'right';
+//       case 'justify': return 'justify';
+//       default: return 'left';
+//     }
+//   }
+// }

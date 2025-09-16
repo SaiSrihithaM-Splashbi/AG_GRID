@@ -1,17 +1,33 @@
-<div class="export-controls">
-    <button id="export-excel-button" (click)="exportAsExcel()">Export to Excel</button>
-    <button id="export-pdf-button" (click)="exportAsPdf()">Export to PDF</button>
-</div>
+<div class="main-layout">
+  <div class="content-area">
+    <div class="controls-section">
+      <div class="export-controls">
+        <button id="export-excel-button" (click)="exportAsExcel()">Export to Excel</button>
+      </div>
+    </div>
 
-<ag-grid-angular
-    style="width: 100%; height: 500px;"
-    class="ag-theme-quartz"
-    [rowData]="rowData"
-    [columnDefs]="columnDefs"
-    [excelStyles]="excelStyles" 
-    [pagination]="true"
-    [paginationPageSize]="100"
-    (gridReady)="onGridReady($event)"
-    [rowHeight]="50"
-    [headerHeight]="50">
-</ag-grid-angular>
+    <div class="grid-container"
+         [style.width.px]="currentStyling.widget.width"
+         [style.height.px]="currentStyling.widget.height"
+         [style.backgroundColor]="currentStyling.widget.backgroundColor"
+         [style.border]="currentStyling.widget.borderSize + 'px solid ' + currentStyling.widget.borderColor">
+      <ag-grid-angular
+          style="width: 100%; height: 100%;"
+          class="ag-theme-alpine custom-grid"
+          [gridOptions]="gridOptions"
+          [rowData]="rowData"
+          [columnDefs]="columnDefs"
+          [pagination]="true"
+          [paginationPageSize]="20"
+          [rowHeight]="50"
+          [headerHeight]="currentStyling.columnHeader.height"
+          (gridReady)="onGridReady($event)">
+      </ag-grid-angular>
+    </div>
+  </div>
+
+  <app-side-panel 
+      [isOpen]="true"
+      (stylingChanged)="onStylingChanged($event)">
+  </app-side-panel>
+</div>

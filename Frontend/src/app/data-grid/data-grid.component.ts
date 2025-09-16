@@ -1,462 +1,212 @@
 import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { ColDef, GridReadyEvent, GridApi, ExcelStyle } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import { ColDef, GridApi, GridOptions, GridReadyEvent } from 'ag-grid-community';
 import { AgGridAngular } from 'ag-grid-angular';
 import { CommonModule } from '@angular/common';
-import { ExcelExportGenerator } from '../utils/excel-export-generator';
-import { PDFDocumentGenerator } from '../utils/pdf-document-generator';
-import { GRID_STYLES } from '../utils/styles-constants';
+import { SidePanelComponent } from '../side-panel/side-panel.component';
+import { GridStylingOptions, DEFAULT_GRID_STYLING } from '../utils/grid-styling.model';
+import { ExcelExporter } from '../utils/excel-export-generator';
 
 @Component({
   selector: 'app-data-grid',
   standalone: true,
-  imports: [
-    CommonModule,
-    AgGridAngular
-  ],
+  imports: [CommonModule, AgGridAngular, SidePanelComponent],
   templateUrl: './data-grid.component.html',
-  styleUrls: ['./data-grid.component.scss']
+  styleUrls: ['./data-grid.component.scss'],
 })
 export class DataGridComponent implements OnInit {
-
-  public columnDefs: ColDef[] = [
-    { 
-      headerName: 'Name', 
-      field: 'Name', 
-      sortable: true, 
-      filter: true,
-      cellStyle: { 
-        'font-weight': 'bold',
-        'color': GRID_STYLES.cells.name.text,
-        'background-color': GRID_STYLES.cells.name.background
-      },
-      headerClass: 'header-bold-blue',
-      cellClass: 'name-cell'
-    },
-    { 
-      headerName: 'Email', 
-      field: 'email', 
-      sortable: true, 
-      filter: true,
-      cellStyle: { 
-        'color': GRID_STYLES.cells.email.text,
-        'background-color': GRID_STYLES.cells.email.background,
-        'font-style': 'italic'
-      },
-      headerClass: 'header-italic-red',
-      cellClass: 'email-cell'
-    },
-    { 
-      headerName: 'Country', 
-      field: 'country', 
-      sortable: true, 
-      filter: true,
-      cellStyle: (params) => {
-        return params.value === 'Egypt'
-          ? { 'background-color': GRID_STYLES.cells.country.egyptBackground, 'color': GRID_STYLES.cells.country.egyptText }
-          : { 'background-color': GRID_STYLES.cells.country.otherBackground, 'color': GRID_STYLES.cells.country.otherText };
-      },
-      headerClass: 'header-green',
-      cellClass: (params) => params.value === 'Egypt' ? 'country-egypt' : 'country-others'
-    },
-    {
-      headerName: 'Phone', 
-      field: 'phone', 
-      sortable: true, 
-      filter: true,
-      cellStyle: { 
-        'text-align': 'center',
-        'font-family': GRID_STYLES.cells.phone.font,
-        'background-color': GRID_STYLES.cells.phone.background
-      },
-      headerClass: 'header-center',
-      cellClass: 'phone-cell'
-    }
-  ];
-
+  public columnDefs: ColDef[] = [];
   public rowData: any[] = [];
-  private gridApi!: GridApi;
-  public fileName: string = 'CustomerDataReport';
+  public gridApi!: GridApi;
+  public gridOptions: GridOptions = { excelStyles: [] };
+  public fileName = 'CustomerDataReport';
 
-  constructor(private http: HttpClient) { }
+  public currentStyling: GridStylingOptions = { ...DEFAULT_GRID_STYLING };
+
+  constructor(private http: HttpClient) {}
 
   async ngOnInit() {
+    this.currentStyling = { ...DEFAULT_GRID_STYLING };
     await this.loadData();
+    this.initializeColumns();
   }
 
   async loadData() {
-    let requests = [];
-    requests.push(firstValueFrom(this.http.get<any>(`https://api.npoint.io/d106e93bb3b59ebfc03a`)));
-    
-    const responses = await Promise.all(requests);
-    this.rowData = responses.flat();
+    try {
+      this.rowData = await firstValueFrom(
+        this.http.get<any[]>('https://api.npoint.io/5243d7ba22d1db8048b9')
+      );
+    } catch (e) {
+      console.error('Failed to load data', e);
+    }
+  }
+
+  initializeColumns() {
+    if (!this.rowData?.length) {
+      this.columnDefs = [];
+      return;
+    }
+
+    this.columnDefs = Object.keys(this.rowData[0]).map((field) => {
+      return {
+        headerName: this.capitalize(field),
+        field,
+        sortable: true,
+        filter: true,
+        resizable: true,
+
+        // ✅ match Excel style IDs
+        headerClass: 'header',
+        cellClass: [`col_${field}`, 'default'],
+
+        headerStyle: {
+          'background-color': this.currentStyling.columnHeader.backgroundColor,
+          color: this.currentStyling.columnHeader.color,
+          'font-size': `${this.currentStyling.columnHeader.fontSize}px`,
+          'font-weight': this.currentStyling.columnHeader.fontWeight,
+          height: `${this.currentStyling.columnHeader.height}px`,
+          'text-align': this.currentStyling.columnHeader.textAlign,
+          'border-bottom': `${this.currentStyling.grid.horizontal.thickness}px solid ${this.currentStyling.grid.horizontal.color}`,
+          padding: `${this.currentStyling.grid.horizontal.padding}px ${this.currentStyling.grid.vertical.padding}px`,
+        },
+        cellStyle: (params: any) => this.buildCellUiStyle(params),
+      } as ColDef;
+    });
+  }
+
+  private buildCellUiStyle(params: any) {
+    const rowIndex = params.node?.rowIndex ?? -1;
+    const isAlternate = rowIndex % 2 === 1;
+
+    return {
+      'font-style': this.currentStyling.values.fontStyle,
+      'font-size': `${this.currentStyling.values.fontSize}px`,
+      'font-weight': this.currentStyling.values.fontWeight,
+      'text-align': this.currentStyling.values.textAlign,
+      'background-color': isAlternate
+        ? this.currentStyling.values.alternateRowBackground
+        : this.currentStyling.values.backgroundColor,
+      color: isAlternate
+        ? this.currentStyling.values.alternateRowFont
+        : this.currentStyling.values.fontColor,
+      'border-bottom': `${this.currentStyling.grid.horizontal.thickness}px solid ${this.currentStyling.grid.horizontal.color}`,
+      'border-right': `${this.currentStyling.grid.vertical.thickness}px solid ${this.currentStyling.grid.vertical.color}`,
+      padding: `${this.currentStyling.grid.horizontal.padding}px ${this.currentStyling.grid.vertical.padding}px`,
+    };
+  }
+
+  capitalize(s: string) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
   onGridReady(params: GridReadyEvent) {
     this.gridApi = params.api;
+    this.updateExcelStyles();
+    this.gridApi.refreshCells({ force: true });
+    this.gridApi.refreshHeader();
   }
 
-  // ✅ Excel Styles linked to GRID_STYLES
-  public excelStyles: ExcelStyle[] = [
-    {
-      id: 'name-cell',
-      font: { bold: true, color: GRID_STYLES.cells.name.text },
-      interior: { color: GRID_STYLES.cells.name.background, pattern: 'Solid' as const }
-    },
-    {
-      id: 'email-cell',
-      font: { italic: true, color: GRID_STYLES.cells.email.text },
-      interior: { color: GRID_STYLES.cells.email.background, pattern: 'Solid' as const }
-    },
-    {
-      id: 'country-egypt',
-      font: { color: GRID_STYLES.cells.country.egyptText },
-      interior: { color: GRID_STYLES.cells.country.egyptBackground, pattern: 'Solid' as const }
-    },
-    {
-      id: 'country-others',
-      font: { color: GRID_STYLES.cells.country.otherText },
-      interior: { color: GRID_STYLES.cells.country.otherBackground, pattern: 'Solid' as const }
-    },
-    {
-      id: 'phone-cell',
-      alignment: { horizontal: 'Center' },
-      interior: { color: GRID_STYLES.cells.phone.background, pattern: 'Solid' as const }
-    },
-    { id: 'header-bold-blue', font: {bold: true , color: GRID_STYLES.headers.boldBlue } },
-    { id: 'header-italic-red', font: { bold: true , color: GRID_STYLES.headers.italicRed } },
-    { id: 'header-green', interior: { color: GRID_STYLES.headers.green, pattern: 'Solid' as const } },
-    { id: 'header-center', alignment: { horizontal: GRID_STYLES.headers.center } }
-  ];
-
-  public exportAsExcel() {
-    new ExcelExportGenerator().generateExcelExport(this.gridApi, this.fileName);
+  onStylingChanged(updated: Partial<GridStylingOptions>) {
+    this.currentStyling = { ...this.currentStyling, ...updated };
+    this.updateExcelStyles();
+    this.gridApi?.refreshCells({ force: true });
+    this.gridApi?.refreshHeader();
+    this.applyCssVariables();
   }
 
-  public async exportAsPdf() {
-    const pdfMakeModule = await import('pdfmake/build/pdfmake');
-    const pdfFonts = await import('pdfmake/build/vfs_fonts');
-    pdfMakeModule.default.vfs = pdfFonts.vfs;
-    const pdfDocDef = new PDFDocumentGenerator().generateDocument(this.gridApi, this.fileName);
-    pdfMakeModule.default.createPdf(pdfDocDef).download(`${this.fileName}.pdf`);
+  private updateExcelStyles() {
+    const styleDict = ExcelExporter.extractSupportedStyles(this.currentStyling);
+    const columnStyles = this.buildColumnStyles();
+    this.gridOptions.excelStyles = ExcelExporter.generateStyles(styleDict, columnStyles);
+  }
+
+  buildColumnStyles(): Record<string, any> {
+    const styles: Record<string, any> = {};
+    if (!this.rowData?.length) return styles;
+
+    const sample = this.rowData[0];
+    Object.keys(sample).forEach((key) => {
+      styles[key] = {
+        ...this.flattenObject(this.currentStyling.values),
+        'header-text-align': this.currentStyling.columnHeader.textAlign,
+      };
+    });
+
+    return styles;
+  }
+
+  applyCssVariables() {
+    const apply = (obj: any, prefix = '') => {
+      for (const [key, val] of Object.entries(obj)) {
+        const varName = prefix ? `${prefix}-${key}` : key;
+        if (typeof val === 'object' && val !== null) {
+          apply(val, varName);
+        } else {
+          document.documentElement.style.setProperty(
+            `--${varName.replace(/[A-Z]/g, '-$&').toLowerCase()}`,
+            String(val)
+          );
+        }
+      }
+    };
+    apply(this.currentStyling);
+  }
+
+  exportAsExcel() {
+    if (!this.gridApi) return;
+
+    const json = this.buildExportJson();
+    console.log('Generated Export JSON:', json);
+
+    const styleDict = ExcelExporter.extractSupportedStyles(this.currentStyling);
+    console.log('Generated Dictionary:', styleDict); // ✅ log dictionary separately
+
+    const excelStyles = ExcelExporter.generateStyles(styleDict, this.buildColumnStyles());
+    ExcelExporter.generate(this.gridApi, this.fileName, excelStyles);
+  }
+
+  private buildExportJson() {
+    const dataProperties: Record<string, any> = {};
+
+    if (this.rowData?.length) {
+      Object.keys(this.rowData[0]).forEach((key) => {
+        dataProperties[key] = {
+          displayName: this.capitalize(key),
+          ...this.flattenObject(this.currentStyling.values),
+          'header-text-align': this.currentStyling.columnHeader.textAlign,
+        };
+      });
+    }
+
+    const widgetProperties = {
+      ...this.flattenObject(this.currentStyling),
+      columns: {
+        All: {
+          ...this.flattenObject(this.currentStyling.values),
+          'header-text-align': this.currentStyling.columnHeader.textAlign,
+        },
+      },
+    };
+
+    return {
+      dataProperties: JSON.stringify(dataProperties),
+      widgetProperties,
+      tableData: this.rowData,
+    };
+  }
+
+  private flattenObject(obj: any, parentKey = ''): Record<string, any> {
+    return Object.entries(obj).reduce((acc, [key, value]) => {
+      const newKey = parentKey ? `${parentKey}-${key}` : key;
+
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        Object.assign(acc, this.flattenObject(value, newKey));
+      } else {
+        acc[newKey] = value;
+      }
+
+      return acc;
+    }, {} as Record<string, any>);
   }
 }
-
-
-
-
-
-
-
-// import { Component, OnInit } from '@angular/core';
-// import { HttpClient } from '@angular/common/http';
-// import { firstValueFrom } from 'rxjs';
-// import {
-//   ColDef,
-//   GridReadyEvent,
-//   GridApi,
-//   GridOptions,
-//   ExcelStyle
-// } from 'ag-grid-community';
-// import 'ag-grid-enterprise';
-// import { AgGridAngular } from 'ag-grid-angular';
-// import { CommonModule } from '@angular/common';
-
-// @Component({
-//   selector: 'app-data-grid',
-//   standalone: true,
-//   imports: [CommonModule, AgGridAngular],
-//   templateUrl: './data-grid.component.html',
-//   styleUrls: ['./data-grid.component.scss']
-// })
-// export class DataGridComponent implements OnInit {
-//   public columnDefs: ColDef[] = [
-//     {
-//       headerName: 'Name',
-//       field: 'Name',
-//       sortable: true,
-//       filter: true,
-//       cellClass: 'name-style',
-//       headerClass: 'header-bold-blue'
-//     },
-//     {
-//       headerName: 'Email',
-//       field: 'email',
-//       sortable: true,
-//       filter: true,
-//       cellClass: 'email-style',
-//       headerClass: 'header-italic-red'
-//     },
-//     {
-//       headerName: 'Country',
-//       field: 'country',
-//       sortable: true,
-//       filter: true,
-//       cellClass: params =>
-//         params.value === 'Egypt' ? 'country-egypt' : 'country-other',
-//       headerClass: 'header-green'
-//     },
-//     {
-//       headerName: 'Phone',
-//       field: 'phone',
-//       sortable: true,
-//       filter: true,
-//       cellClass: 'phone-style',
-//       headerClass: 'header-center'
-//     }
-//   ];
-
-//   public rowData: any[] = [];
-//   public gridOptions: GridOptions = {
-//     excelStyles: this.generateExcelStyles(),
-//     defaultColDef: {
-//       resizable: true,
-//       sortable: true,
-//       filter: true
-//     }
-//   };
-//   private gridApi!: GridApi;
-//   public fileName = 'CustomerDataReport';
-
-//   constructor(private http: HttpClient) {}
-
-//   async ngOnInit() {
-//     await this.loadData();
-//   }
-
-//   async loadData() {
-//     // ✅ Single API call (faster than looping 10 times)
-//     this.rowData = await firstValueFrom(
-//       this.http.get<any[]>('https://api.npoint.io/d106e93bb3b59ebfc03a')
-//     );
-//   }
-
-//   onGridReady(params: GridReadyEvent) {
-//     this.gridApi = params.api;
-//   }
-
-//   public exportAsExcel() {
-//     this.gridApi.exportDataAsExcel({
-//       fileName: this.fileName,
-//       sheetName: 'Customer Data'
-//     });
-//   }
-
-//   private generateExcelStyles(): ExcelStyle[] {
-//     return [
-//       {
-//         id: 'name-style',
-//         font: { bold: true, color: '#c4229c' },
-//         interior: { color: '#bcd618', pattern: 'Solid' }
-//       },
-//       {
-//         id: 'email-style',
-//         font: { italic: true, color: '#ffffff' },
-//         interior: { color: '#02befc', pattern: 'Solid' }
-//       },
-//       {
-//         id: 'country-egypt',
-//         font: { color: '#cfe52c' },
-//         interior: { color: '#b207ac', pattern: 'Solid' }
-//       },
-//       {
-//         id: 'country-other',
-//         font: { color: '#35128d' },
-//         interior: { color: '#09f309', pattern: 'Solid' }
-//       },
-//       {
-//         id: 'phone-style',
-//         font: { bold: true, color: '#000000' },
-//         interior: { color: '#a1a2a4', pattern: 'Solid' },
-//         alignment: { horizontal: 'Center' }
-//       },
-//       {
-//         id: 'header-bold-blue',
-//         font: { bold: true, color: '#0000FF' },
-//         interior: { color: '#D9E1F2', pattern: 'Solid' }
-//       },
-//       {
-//         id: 'header-italic-red',
-//         font: { italic: true, color: '#FF0000' },
-//         interior: { color: '#FCE4D6', pattern: 'Solid' }
-//       },
-//       {
-//         id: 'header-green',
-//         font: { bold: true, color: '#FFFFFF' },
-//         interior: { color: '#00B050', pattern: 'Solid' }
-//       },
-//       {
-//         id: 'header-center',
-//         font: { bold: true, color: '#333333' },
-//         alignment: { horizontal: 'Center' },
-//         interior: { color: '#CCCCCC', pattern: 'Solid' }
-//       }
-//     ];
-//   }
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// import { Component, OnInit } from '@angular/core';
-// import { AgGridAngular } from 'ag-grid-angular';
-// import { ModuleRegistry, AllCommunityModule, ColDef, GridReadyEvent, GridApi } from 'ag-grid-community';
-// import { HttpClient } from '@angular/common/http';
-// import { CommonModule } from '@angular/common';
-// import { firstValueFrom } from 'rxjs';
-
-// // Import libraries for PDF, Excel, and PPTX export
-// import jsPDF from 'jspdf';
-// import autoTable from 'jspdf-autotable';
-// import * as XLSX from 'xlsx';
-// // import PptxGenJS from 'pptxgenjs';
-
-
-// ModuleRegistry.registerModules([AllCommunityModule]);
-
-// @Component({
-//   selector: 'app-data-grid',
-//   standalone: true,
-//   imports: [CommonModule, AgGridAngular],
-//   templateUrl: './data-grid.component.html',
-//   styleUrl: './data-grid.component.scss'
-// })
-// export class DataGridComponent implements OnInit {
-
-//   public columnDefs: ColDef[] = [
-//     { headerName: 'Name', field: 'Name', sortable: true, filter: true },
-//     { headerName: 'Email', field: 'email', sortable: true, filter: true },
-//     { headerName: 'Country', field: 'country', sortable: true, filter: true },
-//     { headerName: 'Phone', field: 'phone', sortable: true, filter: true }
-//   ];
-
-//   public rowData: any[] = [];
-//   private gridApi!: GridApi;
-
-//   constructor(private http: HttpClient) { }
-
-//   async ngOnInit() {
-//     await this.loadData();
-//   }
-
-//   async loadData() {
-//     let requests = [];
-//     for (let i = 0; i < 10; i++) {
-//       requests.push(firstValueFrom(this.http.get<any>(`https://api.npoint.io/b66e5ba94ad1ae231518`)));
-//     }
-//     const responses = await Promise.all(requests);
-//     this.rowData = responses.flat();
-//   }
-
-//   onGridReady(params: GridReadyEvent) {
-//     this.gridApi = params.api;
-//   }
-
-//   // Custom Excel Export using the 'xlsx' library
-//   exportAsExcel() {
-//     if (this.rowData.length === 0) return;
-//     const ws: XLSX.WorkSheet = XLSX.utils.json_to_sheet(this.rowData);
-//     const wb: XLSX.WorkBook = XLSX.utils.book_new();
-//     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-//     XLSX.writeFile(wb, 'aggrid-data.xlsx');
-//   }
-
-//   // Custom PDF Export using 'jspdf' and 'jspdf-autotable' to create a table
-//  exportAsPdf() {
-//   if (this.rowData.length === 0) return;
-//   const doc = new jsPDF();
-//   const headers = this.columnDefs.map(col => col.headerName!)
-//   const body = this.rowData.map(row => this.columnDefs.map(col => row[col.field!]));
-
-//   // THE KEY CHANGE IS HERE:
-//   // You must call autoTable AS A FUNCTION, passing the 'doc' object in.
-//   // The old way was doc.autoTable(...), which is what causes the error.
-//   autoTable(doc, {
-//     head: [headers],
-//     body: body,
-//   });
-
-//   doc.save('aggrid-data.pdf');
-// }
-
-
-// }

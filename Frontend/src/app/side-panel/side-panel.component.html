@@ -1,0 +1,144 @@
+<div class="side-panel" *ngIf="isOpen">
+  <div class="panel-header">
+    <h3>Grid Styling Options</h3>
+  </div>
+
+  <div class="panel-content">
+    <!-- Widget Properties -->
+    <div class="section">
+      <h4>Widget Properties</h4>
+      <div class="form-group">
+        <label>Background Color:</label>
+        <input type="color" [(ngModel)]="stylingOptions.widget.backgroundColor" (ngModelChange)="onStylingChange()">
+      </div>
+      <div class="form-group">
+        <label>Border Color:</label>
+        <input type="color" [(ngModel)]="stylingOptions.widget.borderColor" (ngModelChange)="onStylingChange()">
+      </div>
+      <div class="form-group">
+        <label>Border Size (px):</label>
+        <input type="number" [(ngModel)]="stylingOptions.widget.borderSize" (ngModelChange)="onStylingChange()" min="0" max="10">
+      </div>
+      <div class="form-group">
+        <label>Width (px):</label>
+        <input type="number" [(ngModel)]="stylingOptions.widget.width" (ngModelChange)="onStylingChange()" min="200" max="2000">
+      </div>
+      <div class="form-group">
+        <label>Height (px):</label>
+        <input type="number" [(ngModel)]="stylingOptions.widget.height" (ngModelChange)="onStylingChange()" min="200" max="2000">
+      </div>
+    </div>
+
+    <!-- Grid Styling -->
+    <div class="section">
+      <h4>Grid Lines</h4>
+
+      <div class="subsection">
+        <h5>Horizontal Lines</h5>
+        <div class="form-group">
+          <label>Thickness (px):</label>
+          <input type="number" [(ngModel)]="stylingOptions.grid.horizontal.thickness" (ngModelChange)="onStylingChange()" min="0" max="10">
+        </div>
+        <div class="form-group">
+          <label>Color:</label>
+          <input type="color" [(ngModel)]="stylingOptions.grid.horizontal.color" (ngModelChange)="onStylingChange()">
+        </div>
+        <div class="form-group">
+          <label>Padding (px):</label>
+          <input type="number" [(ngModel)]="stylingOptions.grid.horizontal.padding" (ngModelChange)="onStylingChange()" min="0" max="20">
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h5>Vertical Lines</h5>
+        <div class="form-group">
+          <label>Thickness (px):</label>
+          <input type="number" [(ngModel)]="stylingOptions.grid.vertical.thickness" (ngModelChange)="onStylingChange()" min="0" max="10">
+        </div>
+        <div class="form-group">
+          <label>Color:</label>
+          <input type="color" [(ngModel)]="stylingOptions.grid.vertical.color" (ngModelChange)="onStylingChange()">
+        </div>
+        <div class="form-group">
+          <label>Padding (px):</label>
+          <input type="number" [(ngModel)]="stylingOptions.grid.vertical.padding" (ngModelChange)="onStylingChange()" min="0" max="20">
+        </div>
+      </div>
+    </div>
+
+    <!-- Values Styling -->
+    <div class="section">
+      <h4>Cell Values</h4>
+      <div class="form-group">
+        <label>Font Style:</label>
+        <select [(ngModel)]="stylingOptions.values.fontStyle" (ngModelChange)="onStylingChange()">
+          <option *ngFor="let style of fontStyles" [value]="style.value">{{ style.label }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Font Weight:</label>
+        <select [(ngModel)]="stylingOptions.values.fontWeight" (ngModelChange)="onStylingChange()">
+          <option *ngFor="let weight of fontWeights" [value]="weight.value">{{ weight.label }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Font Size (px):</label>
+        <input type="number" [(ngModel)]="stylingOptions.values.fontSize" (ngModelChange)="onStylingChange()" min="8" max="36">
+      </div>
+      <div class="form-group">
+        <label>Background Color:</label>
+        <input type="color" [(ngModel)]="stylingOptions.values.backgroundColor" (ngModelChange)="onStylingChange()">
+      </div>
+      <div class="form-group">
+        <label>Text Alignment:</label>
+        <select [(ngModel)]="stylingOptions.values.textAlign" (ngModelChange)="onStylingChange()">
+          <option *ngFor="let align of textAlignments" [value]="align.value">{{ align.label }}</option>
+        </select>
+      </div>
+
+      <div class="subsection">
+        <h5>Alternate Rows</h5>
+        <div class="form-group">
+          <label>Alternate Row Font Color:</label>
+          <input type="color" [(ngModel)]="stylingOptions.values.alternateRowFont" (ngModelChange)="onStylingChange()">
+        </div>
+        <div class="form-group">
+          <label>Alternate Row Background:</label>
+          <input type="color" [(ngModel)]="stylingOptions.values.alternateRowBackground" (ngModelChange)="onStylingChange()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Column Header Styling -->
+    <div class="section">
+      <h4>Column Headers</h4>
+      <div class="form-group">
+        <label>Text Color:</label>
+        <input type="color" [(ngModel)]="stylingOptions.columnHeader.color" (ngModelChange)="onStylingChange()">
+      </div>
+      <div class="form-group">
+        <label>Font Size (px):</label>
+        <input type="number" [(ngModel)]="stylingOptions.columnHeader.fontSize" (ngModelChange)="onStylingChange()" min="8" max="36">
+      </div>
+      <div class="form-group">
+        <label>Background Color:</label>
+        <input type="color" [(ngModel)]="stylingOptions.columnHeader.backgroundColor" (ngModelChange)="onStylingChange()">
+      </div>
+      <div class="form-group">
+        <label>Font Weight:</label>
+        <select [(ngModel)]="stylingOptions.columnHeader.fontWeight" (ngModelChange)="onStylingChange()">
+          <option *ngFor="let weight of fontWeights" [value]="weight.value">{{ weight.label }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Height (px):</label>
+        <input type="number" [(ngModel)]="stylingOptions.columnHeader.height" (ngModelChange)="onStylingChange()" min="20" max="100">
+      </div>
+    </div>
+
+    <!-- Reset Button -->
+    <div class="section">
+      <button class="reset-btn" (click)="resetToDefaults()">Reset to Defaults</button>
+    </div>
+  </div>
+</div>
