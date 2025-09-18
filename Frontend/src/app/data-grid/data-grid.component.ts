@@ -36,7 +36,7 @@ export class DataGridComponent implements OnInit {
   async loadData() {
     try {
       this.rowData = await firstValueFrom(
-        this.http.get<any[]>('https://api.npoint.io/0999a1c288e52309858f')
+        this.http.get<any[]>('https://api.npoint.io/648adc457c7dfa14362d')
       );
       // Recompute columns & styles when data arrives
       this.initializeColumns();
@@ -53,6 +53,7 @@ export class DataGridComponent implements OnInit {
     }
 
     this.columnDefs = Object.keys(this.rowData[0]).map((field) => {
+       const safeField = ExcelExporter.sanitizeId(field);
       // dynamic cellClassRules: mark alternate rows and per-column-alternate class
       const cellClassRules: Record<string, (params: any) => boolean> = {
         // generic alt-row class
@@ -62,10 +63,10 @@ export class DataGridComponent implements OnInit {
         },
       };
       // per-column alternate class (col_<field>_alternate)
-      cellClassRules[`col_${field}_alternate`] = (params: any) => {
-        const idx = params.node?.rowIndex ?? -1;
-        return idx % 2 === 1;
-      };
+      cellClassRules[`col_${safeField}_alternate`] = (params: any) => {
+      const idx = params.node?.rowIndex ?? -1;
+      return idx % 2 === 1;
+    };
 
       return {
         headerName: this.capitalize(field),
@@ -76,8 +77,9 @@ export class DataGridComponent implements OnInit {
 
         // match Excel style IDs produced by exporter
         headerClass: 'header',
-        // add both per-column id class and default fallback
-        cellClass: [`col_${field}`, 'default'],
+        // cell class uses sanitized per-column id + default fallback
+      cellClass: [`col_${safeField}`, 'default'],
+
 
         cellClassRules,
 
@@ -165,6 +167,8 @@ export class DataGridComponent implements OnInit {
 
   exportAsExcel() {
     if (!this.gridApi) return;
+
+    
 
     // Build canonical payload and log in the same shape your earlier code used (dataProperties stringified)
     const payload = ExcelExporter.buildExportPayload(this.currentStyling, this.rowData);

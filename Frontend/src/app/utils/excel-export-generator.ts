@@ -3,6 +3,62 @@ import { GridStylingOptions } from './grid-styling.model';
 
 export class ExcelExporter {
   /** Extract supported styles from your UI styling options (keeps header/default templates) */
+  // inside ExcelExporter class (near top)
+public static sanitizeId(s?: string): string {
+  if (!s) return '';
+  // replace whitespace with underscore, remove characters that would split into multiple CSS classes
+  return String(s).trim().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_-]/g, '');
+}
+
+private static normalizeColor(val?: string): string | undefined {
+  if (!val) return undefined;
+  const s = String(val).trim();
+
+  // ✅ If already 8-digit ARGB (like "FF112233"), pass through
+  if (/^[0-9A-Fa-f]{8}$/.test(s)) {
+    return s.toUpperCase();
+  }
+
+  // 3-digit hex (#abc -> aabbcc)
+  const m3 = s.match(/^#?([0-9a-fA-F]{3})$/);
+  if (m3) {
+    const t = m3[1];
+    const r = t[0] + t[0];
+    const g = t[1] + t[1];
+    const b = t[2] + t[2];
+    return `FF${(r + g + b).toUpperCase()}`;
+  }
+
+  // 6-digit hex (#aabbcc)
+  const m6 = s.match(/^#?([0-9a-fA-F]{6})$/);
+  if (m6) return `FF${m6[1].toUpperCase()}`;
+
+  // rgb(...) or rgba(...)
+  const mRgb = s.match(/^rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})/i);
+  if (mRgb) {
+    const r = Number(mRgb[1]).toString(16).padStart(2, '0');
+    const g = Number(mRgb[2]).toString(16).padStart(2, '0');
+    const b = Number(mRgb[3]).toString(16).padStart(2, '0');
+    return `FF${(r + g + b).toUpperCase()}`;
+  }
+
+  // basic named colors
+  const map: Record<string, string> = {
+    black: 'FF000000',
+    white: 'FFFFFFFF',
+    red: 'FFFF0000',
+    green: 'FF008000',
+    blue: 'FF0000FF',
+    gray: 'FF808080',
+  };
+  const lower = s.toLowerCase();
+  if (map[lower]) return map[lower];
+
+  return undefined; // fallback
+}
+
+
+  
   static extractSupportedStyles(styling: GridStylingOptions): Record<string, any> {
     const dict: Record<string, any> = {};
 
@@ -10,7 +66,7 @@ export class ExcelExporter {
       font: {
         color: this.normalizeColor(styling.columnHeader.color),
         size: styling.columnHeader.fontSize,
-        bold: this.toBold(styling.columnHeader.fontWeight),
+        // bold: this.toBold(styling.columnHeader.fontWeight),
         italic: false,
         name: styling.columnHeader.fontFamily,
       },
@@ -26,13 +82,14 @@ export class ExcelExporter {
       font: {
         color: this.normalizeColor(styling.values.fontColor),
         size: styling.values.fontSize,
-        bold: this.toBold(styling.values.fontWeight),
+        // bold: this.toBold(styling.values.fontWeight),
         italic: (styling.values.fontStyle ?? '').toLowerCase() === 'italic',
         name: styling.values.fontFamily,
       },
       alignment: { horizontal: styling.values.textAlign },
       interior: { color: this.normalizeColor(styling.values.backgroundColor) },
       alternateRowBackground: this.normalizeColor(styling.values.alternateRowBackground),
+      alternateRowFont: this.normalizeColor(styling.values.alternateRowFont),
       borders: {
         horizontal: { color: this.normalizeColor(styling.grid.horizontal.color) },
         vertical: { color: this.normalizeColor(styling.grid.vertical.color) },
@@ -47,28 +104,36 @@ export class ExcelExporter {
    * This is used internally when caller gives a GridStylingOptions object.
    */
   static buildPerColumnProps(styling: GridStylingOptions, columns: string[]): Record<string, any> {
-    const v = styling.values;
-    const borderObj = {
-      horizontal: { color: this.normalizeColor(styling.grid.horizontal.color) },
-      vertical: { color: this.normalizeColor(styling.grid.vertical.color) },
-    };
+  const v = styling.values;
+  const borderObj = {
+    horizontal: { 
+      color: this.normalizeColor(styling.grid.horizontal.color),
+      thickness: styling.grid.horizontal.thickness ?? 1
+    },
+    vertical: { 
+      color: this.normalizeColor(styling.grid.vertical.color),
+      thickness: styling.grid.vertical.thickness ?? 1
+    },
+  };
 
-    const res: Record<string, any> = {};
-    for (const col of columns) {
-      res[col] = {
-        'font-color': this.normalizeColor(v.fontColor),
-        'font-size': Number(v.fontSize),
-        'font-weight': String(v.fontWeight),
-        'font-style': v.fontStyle,
-        'font-family': v.fontFamily,
-        'background-color': this.normalizeColor(v.backgroundColor),
-        'text-align': v.textAlign,
-        borders: borderObj,
-        alternateRowBackground: this.normalizeColor(v.alternateRowBackground),
-      };
-    }
-    return res;
+  const res: Record<string, any> = {};
+  for (const col of columns) {
+    const safe = this.sanitizeId(col);
+    res[safe] = {
+      'font-color': this.normalizeColor(v.fontColor),
+      'font-size': Number(v.fontSize),
+      'font-weight': String(v.fontWeight),
+      'font-style': v.fontStyle,
+      'font-family': v.fontFamily,
+      'background-color': this.normalizeColor(v.backgroundColor),
+      'text-align': v.textAlign,
+      borders: borderObj,
+      alternateRowBackground: this.normalizeColor(v.alternateRowBackground),
+      alternateRowFont: this.normalizeColor(v.alternateRowFont),
+    };
   }
+  return res;
+}
 
   /**
    * Single entry: build ExcelStyle[] from styling + columns
@@ -125,7 +190,7 @@ export class ExcelExporter {
       const interiorColor = this.normalizeColor(val?.interior?.color);
       const styleObj: any = {
         id: key,
-        font: val?.font ? { ...val.font, color: this.normalizeColor(val.font.color) } : undefined,
+        font: val?.font ? { ...val.font, color: val.font.color } : undefined,
         alignment: val?.alignment ? { horizontal: this.convertAlignment(val.alignment.horizontal) } : undefined,
         interior: interiorColor ? { color: interiorColor, pattern: 'Solid' } : undefined,
         borders: this.buildBordersFromDict(val?.borders),
@@ -134,19 +199,22 @@ export class ExcelExporter {
 
       // If default or header has alternateRowBackground, build an alternateRow style id
       if (val?.alternateRowBackground) {
-        const altColor = this.normalizeColor(val.alternateRowBackground);
-        if (altColor) {
-          const altStyle: any = {
+          const altColor = this.normalizeColor(val.alternateRowBackground);
+          if (altColor) {
+            const altStyle: any = {
             id: 'alternateRow',
-            font: val?.font ? { ...val.font, color: this.normalizeColor(val.font.color) } : undefined,
-            interior: { color: altColor, pattern: 'Solid' },
-            alignment: val?.alignment ? { horizontal: this.convertAlignment(val.alignment.horizontal) } : undefined,
-            borders: this.buildBordersFromDict(val?.borders),
+            font: {
+                ...(val?.font || {}),
+                color: val?.alternateRowFont ?? val?.font?.color  // remove normalizeColor()
+              },
+              interior: { color: altColor, pattern: 'Solid' },
+              alignment: val?.alignment ? { horizontal: this.convertAlignment(val.alignment.horizontal) } : undefined,
+              borders: this.buildBordersFromDict(val?.borders),
           };
           styles.push(altStyle as ExcelStyle);
-        }
-      }
-    }
+       }
+     }
+  }
 
     // per-column styles (col_<name>)
     if (dataProps) {
@@ -165,9 +233,6 @@ export class ExcelExporter {
         const alignment: any = {};
         if (props['text-align'] || props['horizontal-alignment'] || props['horizontalAlignment']) {
           alignment.horizontal = this.convertAlignment(props['text-align'] ?? props['horizontal-alignment'] ?? props['horizontalAlignment']);
-        }
-        if (props['vertical-align'] || props['verticalAlignment'] || props['vertical-alignment']) {
-          alignment.vertical = this.convertVerticalAlignment(props['vertical-align'] ?? props['verticalAlignment'] ?? props['vertical-alignment']);
         }
         if (props['wrap-text'] !== undefined || props['wrapText'] !== undefined) {
           alignment.wrapText = !!(props['wrap-text'] ?? props['wrapText']);
@@ -215,12 +280,21 @@ export class ExcelExporter {
   }
 
   private static buildBordersFromDict(dict?: any): ExcelStyle['borders'] | undefined {
-    if (!dict) return undefined;
-    const res: any = {};
-    if (dict.horizontal?.color) res.bottom = { color: this.normalizeColor(dict.horizontal.color) };
-    if (dict.vertical?.color) res.right = { color: this.normalizeColor(dict.vertical.color) };
-    return Object.keys(res).length ? res : undefined;
+    if (!dict) return;
+    const hColor = this.normalizeColor(dict.horizontal?.color);
+    const vColor = this.normalizeColor(dict.vertical?.color);
+    const hW = dict.horizontal?.thickness ?? 3;
+    const vW = dict.vertical?.thickness ?? 3;
+    return {
+        borderTop:    { color: hColor, lineStyle: 'Continuous', weight: hW },
+        borderBottom: { color: hColor, lineStyle: 'Continuous', weight: hW },
+        borderLeft:   { color: vColor, lineStyle: 'Continuous', weight: vW },
+        borderRight:  { color: vColor, lineStyle: 'Continuous', weight: vW}
+    };
+
+
   }
+
 
   private static convertAlignment(val?: string): 'Left' | 'Center' | 'Right' | 'Justify' {
     switch ((val ?? '').toLowerCase()) {
@@ -231,30 +305,19 @@ export class ExcelExporter {
     }
   }
 
-  private static convertVerticalAlignment(val?: string): 'Top' | 'Center' | 'Bottom' {
-    switch ((val ?? '').toLowerCase()) {
-      case 'center': return 'Center';
-      case 'bottom': return 'Bottom';
-      default: return 'Top';
-    }
-  }
+  // private static convertVerticalAlignment(val?: string): 'Top' | 'Center' | 'Bottom' {
+  //   switch ((val ?? '').toLowerCase()) {
+  //     case 'center': return 'Center';
+  //     case 'bottom': return 'Bottom';
+  //     default: return 'Top';
+  //   }
+  // }
 
-  private static toBold(val?: string): boolean {
-    return val ? ['bold', '700', 'bolder'].includes(val.toString().toLowerCase()) : false;
-  }
+  // private static toBold(val?: string): boolean {
+  //   return val ? ['bold', '700', 'bolder'].includes(val.toString().toLowerCase()) : false;
+  // }
 
-  /**
-   * Normalize hex-like color strings: return undefined if falsy,
-   * otherwise return a cleaned hex string without '#' and uppercase.
-   */
-  private static normalizeColor(val?: string): string | undefined {
-    if (val === undefined || val === null) return undefined;
-    const s = String(val ?? '').trim();
-    if (!s) return undefined;
-    if (s.startsWith('#')) return s.replace('#', '').toUpperCase();
-    if (/^[0-9a-f]{3}$/i.test(s) || /^[0-9a-f]{6}$/i.test(s)) return s.toUpperCase();
-    return s.toUpperCase();
-  }
+  
 
   /**
    * NEW: Build excelStyles directly from the payload (giant JSON).
@@ -273,6 +336,7 @@ export class ExcelExporter {
     const perColProps: Record<string, any> = {};
     for (const [col, raw] of Object.entries(rawDataProps)) {
       // If the user stringified props (console parity), attempt to parse
+      const safeCol = this.sanitizeId(col);
       let src: any = raw;
       if (typeof raw === 'string') {
         try {
@@ -298,8 +362,8 @@ export class ExcelExporter {
       const underline = pick('underline', 'text-decoration');
       const bg = pick('background-color', 'backgroundColor', 'bg');
       const borderColor = pick('border-color', 'borderColor');
-      const borderStyle = pick('border-style', 'borderStyle');
-      const borderWeight = pick('border-weight', 'borderWeight');
+      // const borderStyle = pick('border-style', 'borderStyle');
+      // const borderWeight = pick('border-weight', 'borderWeight');
       const hAlign = pick('horizontal-alignment', 'horizontalAlignment', 'text-align', 'textAlign');
       const vAlign = pick('vertical-alignment', 'verticalAlignment', 'vertical-align', 'verticalAlign');
       const numberFormat = pick('number-format', 'numberFormat', 'format');
@@ -309,23 +373,23 @@ export class ExcelExporter {
       // construct nested borders if available (we use same color for both directions if provided)
       const borders = borderColor ? { horizontal: { color: this.normalizeColor(borderColor) }, vertical: { color: this.normalizeColor(borderColor) } } : undefined;
 
-      perColProps[col] = {
-        'font-family': fontFamily,
-        'font-color': this.normalizeColor(fontColor),
-        'font-size': fontSize !== undefined ? Number(fontSize) : undefined,
-        'font-weight': fontWeight !== undefined ? String(fontWeight) : undefined,
-        'font-style': fontStyle,
-        'underline': underline,
-        'background-color': this.normalizeColor(bg),
-        'text-align': hAlign,
-        'vertical-align': vAlign,
-        'number-format': numberFormat,
-        'indent': indent !== undefined ? Number(indent) : undefined,
-        'wrap-text': wrapText === true || String(wrapText) === 'true' || String(wrapText) === '1',
-        borders,
-        // allow alternate row color per column if present in payload
-        alternateRowBackground: this.normalizeColor(pick('alternateRowBackground', 'alternate-row-background', 'alternate_row_background')),
-      };
+       perColProps[safeCol] = {
+    'font-family': fontFamily,
+    'font-color': this.normalizeColor(fontColor),
+    'font-size': fontSize !== undefined ? Number(fontSize) : undefined,
+    'font-weight': fontWeight !== undefined ? String(fontWeight) : undefined,
+    'font-style': fontStyle,
+    'underline': underline,
+    'background-color': this.normalizeColor(bg),
+    'text-align': hAlign,
+    'vertical-align': vAlign,
+    'number-format': numberFormat,
+    'indent': indent !== undefined ? Number(indent) : undefined,
+    'wrap-text': wrapText === true || String(wrapText) === 'true' || String(wrapText) === '1',
+    borders,
+    alternateRowBackground: this.normalizeColor(pick('alternateRowBackground', 'alternate-row-background', 'alternate_row_background')),
+    alternateRowFont: this.normalizeColor(pick('alternateRowFont', 'alternate-row-font', 'alternate_row_font')),
+  };
     }
 
     // Generate ExcelStyle[] using the canonical generator

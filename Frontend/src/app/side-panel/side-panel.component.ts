@@ -30,6 +30,8 @@ export class SidePanelComponent {
 
   onStylingChange() {
     this.stylingChanged.emit(this.stylingOptions);
+    console.log('Horizontal thickness =', this.stylingOptions.grid.horizontal.thickness);
+  console.log('Vertical thickness =', this.stylingOptions.grid.vertical.thickness);
   }
 
   resetToDefaults() {

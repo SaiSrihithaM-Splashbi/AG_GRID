@@ -45,8 +45,8 @@ export const DEFAULT_GRID_STYLING: GridStylingOptions = {
     backgroundColor: '#ffffff',
     borderColor: '#000000',
     borderSize: 1,
-    width: 800,
-    height: 600,
+    width: 2000,
+    height: 800,
   },
   columnHeader: {
     color: '#000000',
