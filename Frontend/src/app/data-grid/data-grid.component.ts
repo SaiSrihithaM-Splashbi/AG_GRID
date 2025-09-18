@@ -139,14 +139,6 @@ export class DataGridComponent implements OnInit {
     this.applyCssVariables();
   }
 
-  // Centralized: ask exporter to build ExcelStyle[] and set it on gridOptions
-  private updateExcelStyles() {
-    const columns = this.rowData?.length ? Object.keys(this.rowData[0]) : [];
-    // Build ExcelStyle[] via exporter (single source of truth)
-    const excelStyles = ExcelExporter.buildExcelStyles(this.currentStyling, columns);
-    // Keep gridOptions in sync so template binding [excelStyles]="gridOptions.excelStyles" works
-    this.gridOptions = { ...this.gridOptions, excelStyles };
-  }
 
   applyCssVariables() {
     const apply = (obj: any, prefix = '') => {
@@ -165,10 +157,17 @@ export class DataGridComponent implements OnInit {
     apply(this.currentStyling);
   }
 
+  // Centralized: ask exporter to build ExcelStyle[] and set it on gridOptions
+  private updateExcelStyles() {
+    const columns = this.rowData?.length ? Object.keys(this.rowData[0]) : [];
+    // Build ExcelStyle[] via exporter (single source of truth)
+    const excelStyles = ExcelExporter.buildExcelStyles(this.currentStyling, columns);
+    // Keep gridOptions in sync so template binding [excelStyles]="gridOptions.excelStyles" works
+    this.gridOptions = { ...this.gridOptions, excelStyles };
+  }
+
   exportAsExcel() {
     if (!this.gridApi) return;
-
-    
 
     // Build canonical payload and log in the same shape your earlier code used (dataProperties stringified)
     const payload = ExcelExporter.buildExportPayload(this.currentStyling, this.rowData);

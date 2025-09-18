@@ -4,12 +4,15 @@ import { GridStylingOptions } from './grid-styling.model';
 export class ExcelExporter {
   /** Extract supported styles from your UI styling options (keeps header/default templates) */
   // inside ExcelExporter class (near top)
+
 public static sanitizeId(s?: string): string {
   if (!s) return '';
   // replace whitespace with underscore, remove characters that would split into multiple CSS classes
   return String(s).trim().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_-]/g, '');
 }
 
+
+// Converts any color format to the Excel-compatible ARGB hex string (like FF112233).
 private static normalizeColor(val?: string): string | undefined {
   if (!val) return undefined;
   const s = String(val).trim();
@@ -58,18 +61,40 @@ private static normalizeColor(val?: string): string | undefined {
 }
 
 
-  
+private static extractFontProps(props: any): any {
+  const font: any = {};
+
+  // Font Family
+  const family = props['font-family'] || props.fontFamily;
+  if (family) font.fontName = family;
+
+  // Font Size
+  const size = props['font-size'] || props.fontSize;
+  if (size) font.size = Number(size);
+
+  // Font Weight
+  const weight = props['font-weight'] || props.fontWeight;
+  if (weight) font.bold = weight === 'bold' || weight === '700' || weight >= 600;
+
+  // Font Color
+  const color = props['font-color'] || props.fontColor;
+  if (color) font.color = this.normalizeColor(color);
+
+  return Object.keys(font).length ? font : undefined;
+}
+
+
+  // Converts your UI grid styling object (GridStylingOptions) into a minimal dictionary of header and default Excel styles.
   static extractSupportedStyles(styling: GridStylingOptions): Record<string, any> {
     const dict: Record<string, any> = {};
 
     dict['header'] = {
-      font: {
-        color: this.normalizeColor(styling.columnHeader.color),
-        size: styling.columnHeader.fontSize,
-        // bold: this.toBold(styling.columnHeader.fontWeight),
-        italic: false,
-        name: styling.columnHeader.fontFamily,
-      },
+      font: this.extractFontProps({
+      'font-color': styling.columnHeader.color,
+      'font-size': styling.columnHeader.fontSize,
+      'font-family': styling.columnHeader.fontFamily,
+      'font-weight': styling.columnHeader.fontWeight,
+    }),
       alignment: { horizontal: styling.columnHeader.textAlign },
       interior: { color: this.normalizeColor(styling.columnHeader.backgroundColor) },
       borders: {
@@ -102,6 +127,9 @@ private static normalizeColor(val?: string): string | undefined {
   /**
    * Build per-column props in the exact shape generateStyles expects.
    * This is used internally when caller gives a GridStylingOptions object.
+   * Builds column-specific properties for Excel export.
+   * Use case: If you want Customer Name column to have specific font color, size, 
+      or alternate row styling in Excel.
    */
   static buildPerColumnProps(styling: GridStylingOptions, columns: string[]): Record<string, any> {
   const v = styling.values;
@@ -137,6 +165,8 @@ private static normalizeColor(val?: string): string | undefined {
 
   /**
    * Single entry: build ExcelStyle[] from styling + columns
+   * Main method to generate the ExcelStyle array required by ag-Grid.
+   * Called whenever you want the Excel file to reflect your current grid styling.
    */
   static buildExcelStyles(styling: GridStylingOptions, columns: string[]): ExcelStyle[] {
     const styleDict = this.extractSupportedStyles(styling);
@@ -144,7 +174,11 @@ private static normalizeColor(val?: string): string | undefined {
     return this.generateStyles(styleDict, perCol);
   }
 
-  /** Optional: build consistent JSON payload for UI/export consumption */
+
+
+  /** Optional: build consistent JSON payload for UI/export consumption 
+   * Creates a canonical JSON payload for export, including column properties and table data.
+  */
   static buildExportPayload(styling: GridStylingOptions, tableData: any[]) {
     const cols = tableData?.length ? Object.keys(tableData[0]) : [];
     const dataProperties: Record<string, any> = {};
@@ -181,7 +215,12 @@ private static normalizeColor(val?: string): string | undefined {
     return { dataProperties, widgetProperties, tableData };
   }
 
-  /** Convert the dictionary into ag-Grid ExcelStyle[] */
+
+
+  /** Convert the dictionary into ag-Grid ExcelStyle[] 
+   * Converts style dictionaries into the ag-Grid ExcelStyle array.
+   * Core function for converting your UI styles to Excel-compatible styles.
+  */
   static generateStyles(styleDict: Record<string, any>, dataProps?: Record<string, any>): ExcelStyle[] {
     const styles: ExcelStyle[] = [];
 
@@ -219,15 +258,18 @@ private static normalizeColor(val?: string): string | undefined {
     // per-column styles (col_<name>)
     if (dataProps) {
       for (const [col, props] of Object.entries(dataProps)) {
-        const font: any = {};
-        if (props['font-family']) font.name = props['font-family'];
-        if (props['font-color']) font.color = this.normalizeColor(props['font-color']);
-        if (props['font-size']) font.size = Number(props['font-size']);
-        if (props['font-weight']) {
-          font.bold = ['bold', '700', 'bolder'].includes(String(props['font-weight']).toLowerCase());
+        let font: any = this.extractFontProps(props);
+
+      // add italic + underline (not covered in extractFontProps)
+        if (props['font-style']) {
+          font = font || {};
+          font.italic = String(props['font-style']).toLowerCase() === 'italic';
         }
-        if (props['font-style']) font.italic = String(props['font-style']).toLowerCase() === 'italic';
-        if (props['underline'] === true || String(props['underline']).toLowerCase() === 'underline') font.underline = true;
+        if (props['underline'] === true || String(props['underline']).toLowerCase() === 'underline') {
+          font = font || {};
+          font.underline = true;
+        }
+
 
         // alignment: allow horizontal, vertical, wrapText, indent
         const alignment: any = {};
@@ -279,6 +321,11 @@ private static normalizeColor(val?: string): string | undefined {
     return styles;
   }
 
+
+  /** 
+   Converts a simple border description into Excel-compatible borders.
+   Ensures horizontal and vertical grid lines are correctly exported to Excel.
+  */
   private static buildBordersFromDict(dict?: any): ExcelStyle['borders'] | undefined {
     if (!dict) return;
     const hColor = this.normalizeColor(dict.horizontal?.color);
@@ -305,23 +352,12 @@ private static normalizeColor(val?: string): string | undefined {
     }
   }
 
-  // private static convertVerticalAlignment(val?: string): 'Top' | 'Center' | 'Bottom' {
-  //   switch ((val ?? '').toLowerCase()) {
-  //     case 'center': return 'Center';
-  //     case 'bottom': return 'Bottom';
-  //     default: return 'Top';
-  //   }
-  // }
-
-  // private static toBold(val?: string): boolean {
-  //   return val ? ['bold', '700', 'bolder'].includes(val.toString().toLowerCase()) : false;
-  // }
-
   
 
   /**
    * NEW: Build excelStyles directly from the payload (giant JSON).
    * This extracts only the supported properties and creates ExcelStyle[].
+   * Useful if you have a saved export payload or want to reconstruct Excel from a JSON object.
    */
   static generateFromPayload(gridApi: GridApi, fileName: string, payload: any): void {
     if (!gridApi) return;
